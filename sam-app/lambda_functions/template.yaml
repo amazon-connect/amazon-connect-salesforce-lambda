@@ -1,0 +1,1219 @@
+# You must have an AWS account to use the Amazon Connect CTI Adapter.
+# Downloading and/or using the Amazon Connect CTI Adapter is subject to the terms of the AWS Customer Agreement,
+# AWS Service Terms, and AWS Privacy Notice.
+
+# © 2017, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+
+# NOTE:  Other license terms may apply to certain, identified software components
+# contained within or distributed with the Amazon Connect CTI Adapter if such terms are
+# included in the LibPhoneNumber-js and Salesforce Open CTI. For such identified components,
+# such other license terms will then apply in lieu of the terms above.
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Amazon Connect SalesForce Lambda integration'
+
+Parameters:
+  SalesforceProduction:
+    Default: true
+    Description: True for Production Environment, False for Sandbox
+    Type: String
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
+    AllowedValues:
+    - true
+    - true
+    - false
+    - false
+    ConstraintDescription: True or False
+  SalesforceHost:
+    Description: Your Salesforce Host. Please make sure the host url starts with "https".
+    AllowedPattern: https(.*)
+    Type: String
+  SalesforceUsername:
+    Default: Salesforce API Username
+    Description: The username of a valid Salesforce API account for your environment.
+      For example, user@domain.com
+    Type: String
+  SalesforceVersion:
+    Default: v42.0
+    Description: To find the Salesforce Edition and API Version please visit https://help.salesforce.com/articleView?id=000199268&type=1
+    Type: String
+  ConnectReportingS3BucketName:
+    Default: ''
+    Description: This is the S3 bucket where Amazon Connect stores scheduled reports. Please refer to http://docs.aws.amazon.com/connect/latest/adminguide/amazon-connect-instance.html#datastorage
+      for details on how retrieve the S3 bucket associated with your Amazon Connect instance. Not required if HistoricalReportingImportEnabled set to false.
+    Type: String
+  ConnectRecordingS3BucketName:
+    Default: ''
+    Description: This is the S3 bucket where Amazon Connect stores call recordings. Please refer to http://docs.aws.amazon.com/connect/latest/adminguide/amazon-connect-instance.html#datastorage
+      for details on how retrieve the S3 bucket associated with your Amazon Connect instance. Not required if both PostcallRecordingImportEnabled and PostcallTranscribeEnabled set to false.
+    Type: String
+  TranscribeOutputS3BucketName:
+    Default: ''
+    Description: This is the S3 bucket where Amazon Transcribe stores the output. If you don't specify an encryption key, the output of the transcription job is encrypted with the default Amazon S3 key (SSE-S3).
+      Not required if both PostcallRecordingImportEnabled and PostcallTranscribeEnabled set to false.
+    Type: String
+  SalesforceCredentialsSecretsManagerARN:
+    Default: ''
+    Description: Enter the ARN for the Salesforce Credentials Secret in AWS Secrets Manager. This field is required.
+    Type: String
+  SalesforceCredentialsKMSKeyARN:
+    Default: ''
+    Description: Enter the ARN for the Salesforce Credentials KMS Key. This field is required.
+    Type: String
+  # TranscribeOutputEncryptionKMSKeyId:
+  #   Default: ''
+  #   Description: The Amazon Resource Name (ARN) of the AWS Key Management Service (KMS) key used to encrypt the output of the transcription job. Leave blank to use S3 SSE.
+  #   Type: String
+  TranscriptionJobCheckWaitTime:
+    Default: 20
+    Description: Time between transcription job checks
+    Type: Number
+  CTRKinesisARN:
+    Type: String
+    Default: ''
+    Description: Enter Kinesis Stream ARN for CTR. Not required is PostcallCTRImportEnabled, PostcallRecordingImportEnabled and PostcallTranscribeEnabled all set to false
+  SalesforceAdapterNamespace:
+    Default: 'amazonconnect'
+    Description: This is the namespace for CTI Adapter managed package. The default value is [amazonconnect]. If a non-managed package is used, leave this field blank.
+    Type: String
+  AmazonConnectInstanceId:
+    Default: ''
+    Description: Enter Amazon Connect Instance Id, the string after the last / in your Amazon Connect instance ARN (aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee). Not required if RealtimeReportingImportEnabled is set to false.
+    Type: String
+  AmazonConnectQueueMaxRecords:
+    Default: 100
+    Description: Enter record set size for list queue query. Max is 100.
+    Type: Number
+  AmazonConnectQueueMetricsMaxRecords:
+    Default: 100
+    Description: Enter record set size for queue metrics query. Max is 100.
+    Type: Number
+  LambdaLoggingLevel:
+    Default: 'INFO'
+    Description: 'Logging level for Lambda functions. Set one of the following DEBUG | INFO | WARNING | ERROR | CRITICAL'
+    Type: String
+    AllowedValues:
+      - DEBUG
+      - INFO
+      - WARNING
+      - ERROR
+      - CRITICAL
+  PostcallRecordingImportEnabled:
+    Default: true
+    Description: Set to false if importing call recordings into Salesforce should not be enabled on the package level.
+    Type: String
+    AllowedPattern: ^(true|false)$
+    AllowedValues:
+    - true
+    - false
+  PostcallTranscribeEnabled:
+    Default: true
+    Description: Set to false if post-call transcription should not be enabled on the package level. 
+    Type: String
+    AllowedPattern: ^(true|false)$
+    AllowedValues:
+    - true
+    - false
+  PostcallCTRImportEnabled:
+    Default: true
+    Description: Set to false if importing CTRs into Salesforce should not be enabled on the package level.
+    Type: String
+    AllowedPattern: ^(true|false)$
+    AllowedValues:
+    - true
+    - false
+  HistoricalReportingImportEnabled:
+    Default: true
+    Description: Set to false if importing Historical Reporting into Salesforce should not be enabled.
+    Type: String
+    AllowedPattern: ^(true|false)$
+    AllowedValues:
+    - true
+    - false
+  RealtimeReportingImportEnabled:
+    Default: true
+    Description: Set to false if importing Realtime Reporting into Salesforce should not be enabled.
+    Type: String
+    AllowedPattern: ^(true|false)$
+    AllowedValues:
+    - true
+    - false
+  ContactLensImportEnabled:
+    Default: true
+    Description: Set to false if importing Contact Lens into Salesforce should not be enabled.
+    Type: String
+    AllowedPattern: ^(true|false)$
+    AllowedValues:
+    - true
+    - false
+  PrivateVpcEnabled:
+    Default: false
+    Description: Set to true if functions should be deployed to a private VPC, set VpcSecurityGroupList and VpcSubnetList if true
+    Type: String
+    AllowedPattern: ^(true|false)$
+    AllowedValues:
+      - true
+      - false
+  VpcSecurityGroupList:
+    Type: CommaDelimitedList
+    Description: The list of SecurityGroupIds for the Virtual Private Cloud (VPC). Not required if PrivateVpcEnabled is set to false.
+    Default: ''
+  VpcSubnetList:
+    Type: CommaDelimitedList
+    Description: The list of Subnets for the Virtual Private Cloud (VPC). Not required if PrivateVpcEnabled is set to false.
+    Default: ''
+
+
+Conditions:
+  PostcallRecordingImportEnabledCondition: !Equals [!Ref PostcallRecordingImportEnabled, true ]
+  PostcallTranscribeEnabledCondition: !Equals [!Ref PostcallTranscribeEnabled, true]
+  PostcallCTRImportEnabledCondition: !Equals [!Ref PostcallCTRImportEnabled, true]
+  HistoricalReportingImportEnabledCondition: !Equals [!Ref HistoricalReportingImportEnabled, true]
+  RealtimeReportingImportEnabledCondition: !Equals [!Ref RealtimeReportingImportEnabled, true]
+  ContactLensImportEnabledCondition: !Equals [!Ref ContactLensImportEnabled, true]
+  PrivateVpcEnabledCondition: !Equals [!Ref PrivateVpcEnabled, true]
+
+  CTREventSourceMappingCondition:
+    !Or
+    - Condition: PostcallRecordingImportEnabledCondition
+    - Condition: PostcallTranscribeEnabledCondition
+    - Condition: PostcallCTRImportEnabledCondition
+
+  PostcallTranscribeRecordingImportEnabledCondition:
+    !Or
+    - Condition: PostcallRecordingImportEnabledCondition
+    - Condition: PostcallTranscribeEnabledCondition
+  
+
+Globals:
+    Function:
+        Timeout: 6
+        Runtime: python3.7
+        Layers:
+          - Ref: sfLambdaLayer
+        CodeUri: .
+        Environment:
+            Variables:
+                LOGGING_LEVEL:
+                    Ref: LambdaLoggingLevel
+        
+Resources:
+
+  sfLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      Description: Salesforce Lambda function external dependencies
+      ContentUri: ../lambda_layers
+      CompatibleRuntimes:
+       - python3.7
+
+  SecretsManagerManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Path: /
+      PolicyDocument:
+        Statement:
+        - Action:
+          - secretsmanager:GetSecretValue
+          Effect: Allow
+          Resource: !Ref SalesforceCredentialsSecretsManagerARN
+        Version: '2012-10-17'
+
+  KMSManagedPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Path: /
+      PolicyDocument:
+        Statement:
+        - Action:
+          - kms:decrypt
+          Effect: Allow
+          Resource: !Ref SalesforceCredentialsKMSKeyARN
+        Version: '2012-10-17'
+
+  VpcManagedPolicy:
+    Condition: PrivateVpcEnabledCondition
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Path: /
+      PolicyDocument:
+        Statement:
+        - Action:
+          - "ec2:CreateNetworkInterface"
+          - "ec2:DescribeNetworkInterfaces"
+          - "ec2:DeleteNetworkInterface"
+          Effect: Allow
+          Resource: "*"
+        Version: '2012-10-17'
+
+  sfLambdaBasicExec:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+      - !Ref SecretsManagerManagedPolicy
+      - !Ref KMSManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
+
+  sfLambdaBasicExecWithS3Read:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+      - !Ref SecretsManagerManagedPolicy
+      - !Ref KMSManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - logs:CreateLogStream
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:*
+          Version: '2012-10-17'
+        PolicyName: sfLambdaBasicExecWithS3ReadLogPolicy
+      - Fn::If:
+        - HistoricalReportingImportEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - s3:GetObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: "arn:aws:s3:::${ConnectReportingS3BucketName}/*"
+            Version: '2012-10-17'
+          PolicyName: sfLambdaBasicExecWithS3ReadReportingS3Policy
+        - Ref: AWS::NoValue
+
+  sfRealTimeQueueMetricsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+              - lambda.amazonaws.com
+          Action:
+            - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+      - !Ref SecretsManagerManagedPolicy
+      - !Ref KMSManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - logs:CreateLogStream
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:*
+          Version: '2012-10-17'
+        PolicyName: sfRealTimeQueueMetricsLogPolicy
+      - Fn::If:
+        - RealtimeReportingImportEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - connect:ListQueues
+              - connect:GetCurrentMetricData
+              Effect: Allow
+              Resource:
+              - Fn::Sub: arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${AmazonConnectInstanceId}/*
+            Version: '2012-10-17'
+          PolicyName: sfRealTimeQueueMetricsConnectPolicy
+        - Ref: AWS::NoValue
+
+  sfRealTimeQueueMetricsLoopJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: Allow
+          Principal:
+            Service:
+              - lambda.amazonaws.com
+          Action:
+            - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - logs:CreateLogStream
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:*
+          Version: '2012-10-17'
+        PolicyName: sfRealTimeQueueMetricsLoopJobLogPolicy
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource:
+             - Fn::GetAtt: sfRealTimeQueueMetrics.Arn
+          Version: '2012-10-17'
+        PolicyName: sfRealTimeQueueMetricsLoopJobInvokeLambdaPolicy
+
+  sfGetTranscribeJobStatusRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - logs:CreateLogStream
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:*
+          Version: '2012-10-17'
+        PolicyName: sfGetTranscribeJobStatusLogPolicy
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - transcribe:GetTranscriptionJob
+            Effect: Allow
+            Resource: '*'
+          Version: '2012-10-17'
+        PolicyName: sfGetTranscribeJobStatusTranscribePolicy
+
+  sfSubmitTranscribeJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - logs:CreateLogStream
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:*
+          Version: '2012-10-17'
+        PolicyName: sfSubmitTranscribeJobLogPolicy
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - transcribe:StartTranscriptionJob
+            Effect: Allow
+            Resource: '*'
+          Version: '2012-10-17'
+        PolicyName: sfSubmitTranscribeJobTranscribePolicy
+      - Fn::If:
+        - PostcallTranscribeEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - s3:GetObject
+              - s3:GetObjectAcl
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfSubmitTranscribeJobConnectRecordingS3Policy
+        - Ref: AWS::NoValue
+      - Fn::If:
+        - PostcallTranscribeEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - s3:GetObject
+              - s3:PutObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfSubmitTranscribeJobTranscribeOutputS3Policy
+        - Ref: AWS::NoValue
+
+  sfExecuteTranscriptionStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - logs:CreateLogStream
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:*
+          Version: '2012-10-17'
+        PolicyName: sfExecuteTranscriptionStateMachineLogPolicy
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - states:StartExecution
+            - states:StopExecution
+            Effect: Allow
+            Resource: 
+              Ref: sfTranscribeStateMachine
+          Version: '2012-10-17'
+        PolicyName: sfExecuteTranscriptionStateMachineStepFunctionPolicy
+      - Fn::If:
+        - PostcallTranscribeRecordingImportEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:ListBucket
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}
+                - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfExecuteTranscriptionStateMachineLockS3Policy
+        - Ref: AWS::NoValue
+      - Fn::If:
+        - PostcallRecordingImportEnabledCondition 
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - s3:GetObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfExecuteTranscriptionStateMachineRecordingS3Policy
+        - Ref: AWS::NoValue
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource:
+              Fn::GetAtt: sfInvokeAPI.Arn
+          Version: '2012-10-17'
+        PolicyName: sfExecuteTranscriptionStateMachineSfInvokeAPIPolicy
+
+  sfCTRTriggerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - logs:CreateLogStream
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:*
+          Version: '2012-10-17'
+        PolicyName: sfCTRTriggerLogPolicy
+      - Fn::If: 
+        - CTREventSourceMappingCondition
+        - PolicyDocument:
+            Statement:
+            - Action:
+              - kinesis:GetShardIterator
+              - kinesis:GetRecords
+              - kinesis:DescribeStream
+              Effect: Allow
+              Resource: 
+                - Ref: CTRKinesisARN
+            Version: '2012-10-17'
+          PolicyName: sfCTRTriggerKinesisPolicy
+        - Ref: AWS::NoValue
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeAsync
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource: 
+              - Fn::GetAtt: sfExecuteTranscriptionStateMachine.Arn
+              - Fn::GetAtt: sfContactTraceRecord.Arn
+          Version: '2012-10-17'
+        PolicyName: sfCTRTriggerLambdaPolicy
+
+  sfProcessTranscriptionResultRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - logs:CreateLogStream
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:*
+          Version: '2012-10-17'
+        PolicyName: sfProcessTranscriptionResultLogPolicy
+      - Fn::If:
+        - PostcallTranscribeEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - s3:GetObject
+              - s3:PutObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfProcessTranscriptionResultS3Policy
+        - Ref: AWS::NoValue
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - comprehend:Detect*
+            - comprehend:BatchDetect*
+            Effect: Allow
+            Resource: '*'
+          Version: '2012-10-17'
+        PolicyName: sfProcessTranscriptionResultComprehendPolicy
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource:
+              Fn::GetAtt: sfInvokeAPI.Arn
+          Version: '2012-10-17'
+        PolicyName: sfProcessTranscriptionResultSfInvokeAPIPolicy
+
+
+  sfProcessContactLensRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - logs:CreateLogStream
+            - logs:CreateLogGroup
+            - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+            - arn:aws:logs:*:*:*
+          Version: '2012-10-17'
+        PolicyName: sfProcessContactLensLogPolicy
+      - Fn::If:
+        - ContactLensImportEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - s3:GetObject
+              - s3:PutObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensResultS3Policy
+        - Ref: AWS::NoValue
+      - Fn::If:
+        - ContactLensImportEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - s3:GetObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensRecordingS3Policy
+        - Ref: AWS::NoValue  
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource:
+              Fn::GetAtt: sfInvokeAPI.Arn
+          Version: '2012-10-17'
+        PolicyName: sfProcessContactLensSfInvokeAPIPolicy
+
+
+  sfTranscribeStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - Fn::Sub: states.${AWS::Region}.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource: 
+              - Fn::GetAtt: sfSubmitTranscribeJob.Arn
+              - Fn::GetAtt: sfGetTranscribeJobStatus.Arn
+              - Fn::GetAtt: sfProcessTranscriptionResult.Arn
+          Version: '2012-10-17'
+        PolicyName: sfTranscribeStateMachinePolicy
+
+  sfRealTimeQueueMetricsLoopJobStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - Fn::Sub: states.${AWS::Region}.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource:
+              - Fn::GetAtt: sfRealTimeQueueMetricsLoopJob.Arn
+          Version: '2012-10-17'
+        PolicyName: sfRealTimeQueueMetricsLoopJobStateMachinePolicy
+
+  sfInvokeAPI:
+    Type: AWS::Serverless::Function
+    Properties:
+        Handler: sfInvokeAPI.lambda_handler
+        VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - !Ref AWS::NoValue
+        Role:
+          Fn::GetAtt: sfLambdaBasicExec.Arn
+        Environment:
+            Variables:
+                SF_HOST:
+                    Ref: SalesforceHost
+                SF_PRODUCTION:
+                    Ref: SalesforceProduction
+                SF_USERNAME:
+                    Ref: SalesforceUsername
+                SF_VERSION:
+                    Ref: SalesforceVersion
+                SF_ADAPTER_NAMESPACE:
+                    Ref: SalesforceAdapterNamespace
+                SF_CREDENTIALS_SECRETS_MANAGER_ARN:
+                    Ref: SalesforceCredentialsSecretsManagerARN
+
+  sfContactTraceRecord:
+    Type: AWS::Serverless::Function
+    Properties:
+        Handler: sfContactTraceRecord.lambda_handler
+        VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue
+        Role:
+          Fn::GetAtt: sfLambdaBasicExec.Arn
+        Timeout: 30
+        Environment:
+            Variables:
+                SF_HOST:
+                    Ref: SalesforceHost
+                SF_PRODUCTION:
+                    Ref: SalesforceProduction
+                SF_USERNAME:
+                    Ref: SalesforceUsername
+                SF_VERSION:
+                    Ref: SalesforceVersion
+                SF_ADAPTER_NAMESPACE:
+                    Ref: SalesforceAdapterNamespace
+                SF_CREDENTIALS_SECRETS_MANAGER_ARN:
+                    Ref: SalesforceCredentialsSecretsManagerARN
+
+  sfIntervalAgent:
+    Type: AWS::Serverless::Function
+    Properties:
+        Handler: sfIntervalAgent.lambda_handler
+        VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue
+        Role:
+            Fn::GetAtt: sfLambdaBasicExecWithS3Read.Arn
+        Timeout: 60
+        Environment:
+            Variables:
+                SF_HOST:
+                    Ref: SalesforceHost
+                SF_PRODUCTION:
+                    Ref: SalesforceProduction
+                SF_USERNAME:
+                    Ref: SalesforceUsername
+                SF_VERSION:
+                    Ref: SalesforceVersion
+                SF_ADAPTER_NAMESPACE:
+                    Ref: SalesforceAdapterNamespace
+                SF_CREDENTIALS_SECRETS_MANAGER_ARN:
+                    Ref: SalesforceCredentialsSecretsManagerARN
+
+  sfIntervalQueue:
+    Type: AWS::Serverless::Function
+    Properties:
+        Handler: sfIntervalQueue.lambda_handler
+        VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue
+        Role:
+            Fn::GetAtt: sfLambdaBasicExecWithS3Read.Arn
+        Timeout: 60
+        Environment:
+            Variables:
+                SF_HOST:
+                    Ref: SalesforceHost
+                SF_PRODUCTION:
+                    Ref: SalesforceProduction
+                SF_USERNAME:
+                    Ref: SalesforceUsername
+                SF_VERSION:
+                    Ref: SalesforceVersion
+                SF_ADAPTER_NAMESPACE:
+                    Ref: SalesforceAdapterNamespace
+                SF_CREDENTIALS_SECRETS_MANAGER_ARN:
+                    Ref: SalesforceCredentialsSecretsManagerARN
+
+  sfRealTimeQueueMetrics:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfRealTimeQueueMetrics.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue
+      Role:
+        Fn::GetAtt: sfRealTimeQueueMetricsRole.Arn
+      Timeout: 900
+      Environment:
+        Variables:
+          SF_HOST:
+            Ref: SalesforceHost
+          SF_PRODUCTION:
+            Ref: SalesforceProduction
+          SF_USERNAME:
+            Ref: SalesforceUsername
+          SF_VERSION:
+            Ref: SalesforceVersion
+          SF_ADAPTER_NAMESPACE:
+            Ref: SalesforceAdapterNamespace
+          AMAZON_CONNECT_INSTANCE_ID:
+            Ref: AmazonConnectInstanceId
+          AMAZON_CONNECT_QUEUE_MAX_RESULT:
+            Ref: AmazonConnectQueueMaxRecords
+          AMAZON_CONNECT_QUEUEMETRICS_MAX_RESULT:
+            Ref: AmazonConnectQueueMetricsMaxRecords
+          SF_CREDENTIALS_SECRETS_MANAGER_ARN:
+            Ref: SalesforceCredentialsSecretsManagerARN
+
+  sfRealTimeQueueMetricsLoopJob:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfRealTimeQueueMetricsLoopJob.lambda_handler
+      Role:
+        Fn::GetAtt: sfRealTimeQueueMetricsLoopJobRole.Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          SFDC_REALTIME_QUEUE_METRICS_LAMBDA:
+            Fn::GetAtt: sfRealTimeQueueMetrics.Arn
+
+
+  sfGetTranscribeJobStatus:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfGetTranscribeJobStatus.lambda_handler
+      Role:
+        Fn::GetAtt: sfGetTranscribeJobStatusRole.Arn
+      Timeout: 10
+
+  sfSubmitTranscribeJob:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfSubmitTranscribeJob.lambda_handler
+      Role:
+        Fn::GetAtt: sfSubmitTranscribeJobRole.Arn
+      Timeout: 10
+
+  sfExecuteTranscriptionStateMachine:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfExecuteTranscriptionStateMachine.lambda_handler
+      Role:
+        Fn::GetAtt: sfExecuteTranscriptionStateMachineRole.Arn
+      Timeout: 120
+      Environment:
+        Variables:
+          MEDIA_FORMAT: wav
+          TRANSCRIBE_STATE_MACHINE_ARN:
+            Ref: sfTranscribeStateMachine
+          WAIT_TIME:
+            Ref: TranscriptionJobCheckWaitTime
+          TRANSCRIPTS_DESTINATION:
+            Ref: TranscribeOutputS3BucketName
+          TRANSCRIPTS_DESTINATION_KMS: ''
+            #Ref: TranscribeOutputEncryptionKMSKeyId
+          SFDC_INVOKE_API_LAMBDA:
+            Fn::GetAtt: sfInvokeAPI.Arn
+          SF_ADAPTER_NAMESPACE:
+            Ref: SalesforceAdapterNamespace
+
+  sfCTRTrigger:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfCTRTrigger.lambda_handler
+      Role:
+        Fn::GetAtt: sfCTRTriggerRole.Arn
+      Timeout: 20
+      Environment:
+        Variables:
+          EXECUTE_TRANSCRIPTION_STATE_MACHINE_LAMBDA:
+            Ref: sfExecuteTranscriptionStateMachine
+          EXECUTE_CTR_IMPORT_LAMBDA:
+            Ref: sfContactTraceRecord
+          POSTCALL_CTR_IMPORT_ENABLED:
+            Ref: PostcallCTRImportEnabled
+          POSTCALL_RECORDING_IMPORT_ENABLED:
+            Ref: PostcallRecordingImportEnabled
+          POSTCALL_TRANSCRIBE_ENABLED:
+            Ref: PostcallTranscribeEnabled
+          CONTACT_LENS_IMPORT_ENABLED:
+            Ref: ContactLensImportEnabled
+
+  CTREventSourceMapping:
+    Type: "AWS::Lambda::EventSourceMapping"
+    Condition: CTREventSourceMappingCondition
+    Properties:
+      EventSourceArn: 
+        Ref: CTRKinesisARN
+      FunctionName: 
+        Fn::GetAtt: sfCTRTrigger.Arn
+      StartingPosition: "LATEST"
+      BatchSize: 100
+
+  sfProcessTranscriptionResult:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfProcessTranscriptionResult.lambda_handler
+      Role:
+        Fn::GetAtt: sfProcessTranscriptionResultRole.Arn
+      Timeout: 60
+      Environment:
+        Variables:
+          SFDC_INVOKE_API_LAMBDA:
+            Fn::GetAtt: sfInvokeAPI.Arn
+          SF_ADAPTER_NAMESPACE:
+            Ref: SalesforceAdapterNamespace
+
+  sfProcessContactLens:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfProcessContactLens.lambda_handler
+      Role:
+        Fn::GetAtt: sfProcessContactLensRole.Arn
+      Timeout: 60
+      Environment:
+        Variables:
+          SFDC_INVOKE_API_LAMBDA:
+            Fn::GetAtt: sfInvokeAPI.Arn
+          SF_ADAPTER_NAMESPACE:
+            Ref: SalesforceAdapterNamespace
+          TRANSCRIPTS_DESTINATION:
+            Ref: TranscribeOutputS3BucketName
+
+  sfRealTimeQueueMetricsLoopJobStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        !Sub
+          - |-
+            {
+              "Comment": "Invoke Real time Queue Metrics Lambda function every 15 seconds",
+              "StartAt": "ConfigureCount",
+              "States": {
+                  "ConfigureCount": {
+                      "Type": "Pass",
+                      "Result": {
+                          "index": 0,
+                          "count": 4
+                      },
+                      "ResultPath": "$.iterator",
+                      "Next": "Iterator"
+                  },
+                  "Iterator": {
+                    "Type": "Task",
+                    "Resource": "${sfRealTimeQueueMetricsLoopJob}",
+                    "ResultPath": "$.iterator",
+                    "Next": "IsCountReached"
+                  },
+                  "IsCountReached": {
+                    "Type": "Choice",
+                    "Choices": [
+                      {
+                        "Variable": "$.iterator.continue",
+                        "BooleanEquals": true,
+                        "Next": "Wait"
+                      }
+                    ],
+                    "Default": "Done"
+                },
+                "Wait": {
+                  "Type": "Wait",
+                  "Seconds": 15,
+                  "Next": "Iterator"
+                },
+                "Done": {
+                  "Type": "Pass",
+                  "End": true
+                }
+              }
+            }
+          - {
+              sfRealTimeQueueMetricsLoopJob: !GetAtt [sfRealTimeQueueMetricsLoopJob, Arn]
+            }
+      RoleArn:
+        Fn::GetAtt: sfRealTimeQueueMetricsLoopJobStateMachineRole.Arn
+
+  sfTranscribeStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        !Sub
+          - |-
+            {
+              "Comment": "A state machine that submits a Job to transcribe audio",
+              "StartAt": "Submit Transcription Job",
+              "States": {
+                  "Submit Transcription Job": {
+                      "Type": "Task",
+                      "Resource": "${sfSubmitTranscribeJob}",
+                      "ResultPath": "$.TranscriptionJob",
+                      "Next": "Wait X Seconds",
+                      "Retry": [
+                          {
+                              "ErrorEquals": [
+                                  "States.ALL"
+                              ],
+                              "IntervalSeconds": 20,
+                              "MaxAttempts": 3,
+                              "BackoffRate": 2
+                          }
+                      ]
+                  },
+                  "Wait X Seconds": {
+                      "Type": "Wait",
+                      "SecondsPath": "$.wait_time",
+                      "Next": "Get Transcription Job Status"
+                  },
+                  "Get Transcription Job Status": {
+                      "Type": "Task",
+                      "Resource": "${sfGetTranscribeJobStatus}",
+                      "Next": "Job Complete?",
+                      "InputPath": "$.TranscriptionJob",
+                      "ResultPath": "$.TranscriptionJob",
+                      "Retry": [
+                          {
+                              "ErrorEquals": [
+                                  "States.ALL"
+                              ],
+                              "IntervalSeconds": 20,
+                              "MaxAttempts": 3,
+                              "BackoffRate": 2
+                          }
+                      ]
+                  },
+                  "Job Complete?": {
+                      "Type": "Choice",
+                      "Choices": [
+                          {
+                              "Variable": "$.TranscriptionJob.TranscriptionJobStatus",
+                              "StringEquals": "FAILED",
+                              "Next": "Job Failed"
+                          },
+                          {
+                              "Variable": "$.TranscriptionJob.TranscriptionJobStatus",
+                              "StringEquals": "COMPLETED",
+                              "Next": "Process Transcription Result"
+                          }
+                      ],
+                      "Default": "Wait X Seconds"
+                  },
+                  "Job Failed": {
+                      "Type": "Fail",
+                      "Cause": "Transcription job Failed",
+                      "Error": "Transcription job FAILED"
+                  },
+                  "Process Transcription Result": {
+                      "Type": "Task",
+                      "Resource": "${sfProcessTranscriptionResult}",
+                      "InputPath": "$",
+                      "End": true,
+                      "Retry": [
+                          {
+                              "ErrorEquals": [
+                                  "States.ALL"
+                              ],
+                              "IntervalSeconds": 20,
+                              "MaxAttempts": 3,
+                              "BackoffRate": 2
+                          }
+                      ]
+                  }
+              }
+            }
+          - {
+              sfSubmitTranscribeJob: !GetAtt [sfSubmitTranscribeJob, Arn],
+              sfGetTranscribeJobStatus: !GetAtt [sfGetTranscribeJobStatus,Arn],
+              sfProcessTranscriptionResult: !GetAtt [sfProcessTranscriptionResult,Arn]
+            }
+      RoleArn:
+        Fn::GetAtt: sfTranscribeStateMachineRole.Arn
+
+  sfRealTimeQueueMetricsCron:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Executes Step Functions every minute
+      ScheduleExpression: rate(1 minute)
+      State: !If [RealtimeReportingImportEnabledCondition, ENABLED, DISABLED] 
+      Targets:
+        -
+          Arn: !Ref sfRealTimeQueueMetricsLoopJobStateMachine
+          Id: !Sub '${AWS::StackName}-sfRealTimeQueue'
+          RoleArn: !GetAtt sfRealTimeQueueMetricsCronExecutionRole.Arn
+
+  sfRealTimeQueueMetricsCronExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /service-role/
+      Policies:
+        - PolicyName: sfRealTimeQueueMetricsCronStartStepFunctions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: states:StartExecution
+                Resource: !Ref sfRealTimeQueueMetricsLoopJobStateMachine
+
+

@@ -1,0 +1,10 @@
+{
+    "Details": {
+      "Parameters": {
+        "sf_operation" : "update",
+        "sf_object": "Case",
+        "sf_id": "5001r000023P6WQAA0",
+        "Status": "Closed"
+      }
+    }
+  }

@@ -1,0 +1,13 @@
+{
+    "Details": {
+      "Parameters": {
+        "sf_operation" : "create",
+        "sf_object": "Case",
+        "Origin": "Phone",
+        "Status": "New",
+        "ContactId": "0031r000026MVPIAA4",
+        "Subject": "Amazon Connect Case",
+        "Priority": "Low"
+      }
+    }
+  }

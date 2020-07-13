@@ -1,0 +1,10 @@
+{
+    "Details": {
+      "Parameters": {
+        "sf_operation" : "lookup",
+        "homephone": "+441122334455",
+        "sf_object": "Contact",
+        "sf_fields": "Id, Name" 
+      }
+    }
+  }

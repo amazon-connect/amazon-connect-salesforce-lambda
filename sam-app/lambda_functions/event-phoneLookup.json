@@ -1,0 +1,9 @@
+{
+    "Details": {
+      "Parameters": {
+        "sf_operation" : "phoneLookup",
+        "sf_phone": "+441122334455",
+        "sf_fields": "Id, Name, Email" 
+      }
+    }
+  }
