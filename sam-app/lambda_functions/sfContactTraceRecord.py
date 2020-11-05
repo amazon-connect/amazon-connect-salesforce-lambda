@@ -50,7 +50,7 @@ def process_ctr_record(record):
     record_obj = json.loads(decoded_payload)
     logger.info('DecodedPayload: {}'.format(record_obj))
 
-    if 'postcallCTRImportEnabled' in record_obj["Attributes"] and record_obj["Attributes"]["postcallCTRImportEnabled"] == 'true':
+    if 'Attributes' in record_obj and 'postcallCTRImportEnabled' in record_obj["Attributes"] and record_obj["Attributes"]["postcallCTRImportEnabled"] == 'true':
         logger.info('postcallCTRImportEnabled = true')
         create_ctr_record(record_obj)
 
@@ -76,7 +76,7 @@ def create_ctr_record(ctr):
         sf_request[objectnamespace + 'AgentConnectedToAgentTimestamp__c'] = ctr['Agent']['ConnectedToAgentTimestamp']
         sf_request[objectnamespace + 'AgentInteractionDuration__c'] = ctr['Agent']['AgentInteractionDuration']
         sf_request[objectnamespace + 'AgentCustomerHoldDuration__c'] = ctr['Agent']['CustomerHoldDuration']
-        sf_request[objectnamespace + 'AgentHierarchyGroups__c'] = ctr['Agent']['HierarchyGroups']
+        sf_request[objectnamespace + 'AgentHierarchyGroup__c'] = json.dumps(ctr['Agent']['HierarchyGroups'])
         sf_request[objectnamespace + 'AgentLongestHoldDuration__c'] = ctr['Agent']['LongestHoldDuration']
         sf_request[objectnamespace + 'AgentNumberOfHolds__c'] = ctr['Agent']['NumberOfHolds']
         sf_request[objectnamespace + 'AgentUsername__c'] = ctr['Agent']['Username']
@@ -122,15 +122,15 @@ def create_ctr_record(ctr):
 
     # Transfer Data
     if ctr['TransferredToEndpoint']:
-        sfRequest[objectnamespace + 'TransferredToEndpoint__c'] = ctr['TransferredToEndpoint']['Address']
+        sf_request[objectnamespace + 'TransferredToEndpoint__c'] = ctr['TransferredToEndpoint']['Address']
         
     if ctr['TransferCompletedTimestamp']:
-        sfRequest[objectnamespace + 'TransferCompletedTimestamp__c'] = ctr['TransferCompletedTimestamp']
+        sf_request[objectnamespace + 'TransferCompletedTimestamp__c'] = ctr['TransferCompletedTimestamp']
 
     logger.info(f'Record : {sf_request}')
 
     sf = Salesforce()
     sf.sign_in()
-    sf.update_by_external(objectnamespace + "AC_ContactTraceRecord__c", objectnamespace + 'ContactId__c',ctr['ContactId'], sf_request)
+    sf.update_by_external(objectnamespace + "AC_ContactTraceRecord__c", objectnamespace + 'ContactId__c', ctr['ContactId'], sf_request)
 
     logger.info(f'Record Created Successfully')

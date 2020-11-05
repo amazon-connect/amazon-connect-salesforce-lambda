@@ -26,6 +26,7 @@ limitations under the License.
 import json, logging, os
 import requests
 import boto3
+import datetime
 from botocore.exceptions import ClientError
 from sf_util import get_arg
 
@@ -34,6 +35,12 @@ logger = logging.getLogger()
 class Salesforce:
 
   def __init__(self):
+    session = boto3.session.Session()
+    self.secrets = {}
+    self.secrets_manager_client = session.client(
+      service_name="secretsmanager"
+    )
+    self.sf_credentials_secrets_manager_arn = get_arg(os.environ, "SF_CREDENTIALS_SECRETS_MANAGER_ARN")
 
     self.__load_credentials()
     self.version=get_arg(os.environ, "SF_VERSION")
@@ -42,7 +49,6 @@ class Salesforce:
 
     self.login_host = self.host
     self.request = Request()
-    self.access_token = None
     self.auth_data = {
       'grant_type': 'password',
       'client_id': self.consumer_key,
@@ -50,22 +56,19 @@ class Salesforce:
       'username': self.username,
       'password': self.password
     }
+
     if get_arg(os.environ, "SF_PRODUCTION").lower() == "true":
       self.set_production()
 
   def __load_credentials(self):
     logger.info("Loading credentials")
-    session = boto3.session.Session()
-    client = session.client(
-      service_name="secretsmanager"
-    )
+    self.secrets = json.loads(self.secrets_manager_client.get_secret_value(SecretId=self.sf_credentials_secrets_manager_arn)["SecretString"])
 
-    sf_credentials_secrets_manager_arn = get_arg(os.environ, "SF_CREDENTIALS_SECRETS_MANAGER_ARN")
-    secrets = json.loads(client.get_secret_value(SecretId=sf_credentials_secrets_manager_arn)["SecretString"])
-
-    self.password = secrets["Password"] + secrets["AccessToken"]
-    self.consumer_key = secrets["ConsumerKey"]
-    self.consumer_secret = secrets["ConsumerSecret"]
+    self.password = self.secrets["Password"] + self.secrets["AccessToken"]
+    self.consumer_key = self.secrets["ConsumerKey"]
+    self.consumer_secret = self.secrets["ConsumerSecret"]
+    self.auth_token = self.secrets["AuthToken"] if "AuthToken" in self.secrets else ''
+    self.auth_token_expiration = self.secrets["AuthTokenExpiration"] or 0 if "AuthTokenExpiration" in self.secrets else 0
     logger.info("Credentials Loaded")
 
   def set_production(self):
@@ -73,13 +76,19 @@ class Salesforce:
 
   def sign_in(self):
     logger.info("Salesforce: Sign in")
-    headers = { 'Content-Type': 'application/x-www-form-urlencoded' }
-    resp = self.request.post(url=self.login_host+"/services/oauth2/token", params=self.auth_data, headers=headers, hideData=True)
-    data = resp.json()
-    self.access_token = data['access_token']
-    self.host = data['instance_url']
+    time = datetime.datetime.utcnow()
+
+    if not self.auth_token or time >= datetime.datetime.utcfromtimestamp(self.auth_token_expiration): # stored access token no longer valid
+      logger.info("Retrieving new Salesforce OAuth token")
+      headers = { 'Content-Type': 'application/x-www-form-urlencoded' }
+      resp = self.request.post(url=self.login_host+"/services/oauth2/token", params=self.auth_data, headers=headers, hideData=True)
+      data = resp.json()
+      self.auth_token = self.secrets["AuthToken"] = data['access_token']
+      self.secrets["AuthTokenExpiration"] = (time + datetime.timedelta(minutes=13)).timestamp() # sf access token expires at most every 15 minutes; give ourselves a small buffer
+      self.secrets_manager_client.put_secret_value(SecretId=self.sf_credentials_secrets_manager_arn, SecretString=json.dumps(self.secrets))
+
     self.headers = { 
-      'Authorization': 'Bearer %s' % self.access_token,
+      'Authorization': 'Bearer %s' % self.auth_token,
       'Content-Type': 'application/json'
     }
 
@@ -98,10 +107,10 @@ class Salesforce:
         del record['attributes']
     return data['records']
 
-  def parameterizedSearch(self, params):#TODO: create generator that takes care of subsequent request for more than 200 records
+  def parameterizedSearch(self, data):#TODO: create generator that takes care of subsequent request for more than 200 records
     logger.info("Salesforce: Query")
     url = '%s/services/data/%s/parameterizedSearch' % (self.host, self.version)
-    resp = self.request.get(url=url, params=params, headers=self.headers)
+    resp = self.request.post(url=url, data=data, headers=self.headers)
     data = resp.json()
 
     for record in data['searchRecords']:
@@ -131,11 +140,11 @@ class Salesforce:
     resp = self.request.delete(url=url, headers=self.headers)
 
   def is_authenticated(self):
-    return self.access_token and self.host
+    return self.auth_token and self.host
 
-  def createChatterPost(self,sobject, data):
+  def createChatterPost(self, data):
     logger.info("Salesforce: CreatePost" )
-    url = '%s/services/data/%s/chatter/%s' % (self.host, self.version, sobject)
+    url = '%s/services/data/%s/chatter/feed-elements' % (self.host, self.version)
 
     if not data['sf_mention'] == "" and not data['sf_mention'] == None:
 
@@ -169,9 +178,9 @@ class Salesforce:
     resp = self.request.post(url=url, data=data, headers=self.headers)
     return resp.json()['id']
 
-  def createChatterComment(self,sobject,sfeedElementId, data):
+  def createChatterComment(self, sfeedElementId, data):
     logger.info("Salesforce: CreateComment" )
-    url = '%s/services/data/%s/chatter/%s/%s/capabilities/comments/items' % (self.host, self.version, sobject,sfeedElementId)
+    url = '%s/services/data/%s/chatter/feed-elements/%s/capabilities/comments/items' % (self.host, self.version, sfeedElementId)
     data = {
         'body' : {
         'messageSegments' : [

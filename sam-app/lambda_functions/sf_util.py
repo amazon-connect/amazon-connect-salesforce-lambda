@@ -107,16 +107,6 @@ def find_bucket_key(s3_path):
         s3_key = '/'.join(s3_components[1:])
     return bucket, s3_key
 
-def getBase64fileFromS3(path):
-    s3 = boto3.client('s3')
-    bucket_name, key_name = split_s3_bucket_key(path)
-    response = s3.get_object(Bucket=bucket_name, Key=key_name)
-    recObj = response['Body'].read()
-    encodedBytes = base64.b64encode(recObj)
-    encodedStr = str(encodedBytes, "utf-8")
-    logger.info('S3 file retrieved')
-    return encodedStr
-
 def getS3FileMetadata(Bucket, ContactId):
     oMetadata = {}
     s3 = boto3.client('s3')
@@ -167,3 +157,13 @@ def getBase64String(iObject):
     encodedBytes = base64.b64encode(sObject.encode("utf-8"))
     encodedStr = str(encodedBytes, "utf-8")
     return encodedStr
+
+def text_replace_string(string, word_map):
+    while "{{" in string:
+        startIndex = string.find("{{")
+        endIndex = string.find("}}")
+        key = string[startIndex+2:endIndex].strip()
+        if endIndex < 0 or startIndex > endIndex or key not in word_map or "{{" in word_map[key]:
+            raise Exception("ERROR: string is improperly formatted")
+        string = string[:startIndex] + word_map[key] + string[endIndex+2:]
+    return string

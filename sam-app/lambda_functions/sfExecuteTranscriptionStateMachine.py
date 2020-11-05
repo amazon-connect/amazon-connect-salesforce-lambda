@@ -29,7 +29,7 @@ import os
 import json
 import base64
 import uuid
-from sf_util import split_s3_bucket_key, getBase64fileFromS3, invokeSfAPI, attachFileSaleforceObject
+from sf_util import split_s3_bucket_key, invokeSfAPI
 import logging
 logger = logging.getLogger()
 logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
@@ -40,6 +40,11 @@ def process_record(record):
     decoded_payload = base64.b64decode(record).decode('utf-8')
     recordObj = json.loads(decoded_payload)
     logger.info('DecodedPayload: {}'.format(recordObj))
+
+    # ignore all Kinesis events that don't contain a contact
+    if 'ContactId' not in recordObj:
+        logger.info('No contact in record; returning')
+        return
     
     #check if CTR already locked, and proceed if not locked
     if not checkLockCTR(recordObj['ContactId']):
@@ -52,10 +57,7 @@ def process_record(record):
                 #check if postcallTranscribeEnabled then start the transcribing process
                 if('postcallTranscribeEnabled' in recordObj["Attributes"] and recordObj["Attributes"]["postcallTranscribeEnabled"]=='true' and "postcallTranscribeLanguage" in recordObj["Attributes"]):
                     executeStateMachine(recordObj['Recording']['Location'], recordObj['ContactId'], recordObj["Attributes"]["postcallTranscribeLanguage"])
-                #check if contactLensImportEnabled then start the Contact Lens import process
-                if('contactLensImportEnabled' in recordObj["Attributes"] and recordObj["Attributes"]["contactLensImportEnabled"]=='true'):
-                    #TBD
-                    logger.warning('CONTACT LENS IMPORT Process TBD')    
+
 
 
 def executeStateMachine(s3_object, contactId, languageCode):
@@ -147,7 +149,6 @@ def lambda_handler(event, context):
         raise e
 
 def createACContactChannelAnalyticsSalesforceObject(contactId, recordingPath):
-    
     pnamespace = os.environ['SF_ADAPTER_NAMESPACE']
     if not pnamespace or pnamespace == '-':
         logger.info("SF_ADAPTER_NAMESPACE is empty")
@@ -159,6 +160,7 @@ def createACContactChannelAnalyticsSalesforceObject(contactId, recordingPath):
     sfRequest['Details']['Parameters']['sf_operation'] = 'create'
     sfRequest['Details']['Parameters']['sf_object'] = pnamespace + 'AC_ContactChannelAnalytics__c'
     sfRequest['Details']['Parameters'][pnamespace + 'ContactId__c'] = contactId
+    sfRequest['Details']['Parameters'][pnamespace + 'RecordingPath__c'] = recordingPath
 
     ACContactChannelAnalyticsId = invokeSfAPI(sfRequest)['Id']
     logger.info('SF Object Created, with ID: %s' % ACContactChannelAnalyticsId)
@@ -167,12 +169,4 @@ def createACContactChannelAnalyticsSalesforceObject(contactId, recordingPath):
     oMetadata = {}
     oMetadata['ACContactChannelAnalyticsId'] = ACContactChannelAnalyticsId
     updateLockMetadata(contactId, oMetadata)
-
-    #attach the call recording file
-    try:
-        logger.info('Retrieving and attaching call recodring file: %s' % recordingPath)
-        attachFileSaleforceObject('CallRecording.wav', 'audio/wav', 'Call Recording', ACContactChannelAnalyticsId, getBase64fileFromS3(recordingPath))
-        logger.info('SF Recording Attached')
-    except Exception as e:
-        logger.error('Error attachFileSalesforceObject: {}'.format(e))
     return
