@@ -111,7 +111,7 @@ def getS3FileMetadata(Bucket, ContactId):
     oMetadata = {}
     s3 = boto3.client('s3')
     response = s3.head_object(Bucket=Bucket, Key='locks/' + ContactId + '.lock')
-    logger.info('GetS3FileMetadata Response: %s ' % response)
+    logger.debug('GetS3FileMetadata Response: %s ' % response)
     if 'Metadata' in response:
         oMetadata = response['Metadata']
     return oMetadata
@@ -142,7 +142,7 @@ def invokeSfAPI(sfRequest):
     if(sfLambdaResponse['StatusCode']==200):
         responsePayload = sfLambdaResponse['Payload'].read()
         responsePayload = responsePayload.decode('utf8')
-        logger.info('SF API Lambda Response %s' %responsePayload)
+        logger.debug('SF API Lambda Response %s' %responsePayload)
         responsePayload = json.loads(responsePayload)
         if 'errorMessage' in responsePayload:
             raise ValueError('Error SFDC Lambda: ' + json.dumps(responsePayload))

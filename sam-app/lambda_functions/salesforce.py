@@ -195,30 +195,34 @@ class Salesforce:
 
 class Request:
   def post(self, url, headers, data=None, params=None, hideData=False):
-    logger.info('POST Requests:\nurl=%s' % url)
+    logger.info('Request post')
+    logger.debug('POST Requests:\nurl=%s' % url)
     if not hideData:
-      logger.info("data=%s\nparams=%s" % (data, params))
+      logger.debug("data=%s\nparams=%s" % (data, params))
     r = requests.post(url=url, data=json.dumps(data), params=params, headers=headers)
     if not hideData:
-      logger.info("Response: %s" % r.text)
+      logger.debug("Response: %s" % r.text)
     return __check_resp__(r)
 
   def delete(self, url, headers):
-    logger.info("DELETE Requests:\nurl=%s" % url)
+    logger.info('Request delete')
+    logger.debug("DELETE Requests:\nurl=%s" % url)
     r = requests.delete(url=url, headers=headers)
-    logger.info("Response: %s" % r.text)
+    logger.debug("Response: %s" % r.text)
     return __check_resp__(r)
 
   def patch(self, url, data, headers):
-    logger.info("PATCH Requests:\nurl=%s\ndata=%s" % (url, data))
+    logger.info('Request patch')
+    logger.debug("PATCH Requests:\nurl=%s\ndata=%s" % (url, data))
     r = requests.patch(url=url, data=json.dumps(data), headers=headers)
-    logger.info("Response: %s" % r.text)
+    logger.debug("Response: %s" % r.text)
     return __check_resp__(r)
 
   def get(self, url, params, headers):
-    logger.info("GET Requests:\nurl=%s\nparams=%s" % (url, params))
+    logger.info('Request get')
+    logger.debug("GET Requests:\nurl=%s\nparams=%s" % (url, params))
     r = requests.get(url=url, params=params, headers=headers)
-    logger.info("Response: %s" % r.text)
+    logger.debug("Response: %s" % r.text)
     return __check_resp__(r)
 
 def __check_resp__(resp):
