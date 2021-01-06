@@ -32,12 +32,6 @@ Parameters:
     Description: True for Production Environment, False for Sandbox
     Type: String
     AllowedPattern: ^([Tt]rue|[Ff]alse)$
-    AllowedValues:
-    - true
-    - true
-    - false
-    - false
-    ConstraintDescription: True or False
   SalesforceHost:
     Description: Your Salesforce Host. Please make sure the host url starts with "https".
     AllowedPattern: https(.*)
@@ -120,50 +114,37 @@ Parameters:
     Default: true
     Description: Set to false if importing call recordings into Salesforce should not be enabled on the package level. See installation guide for setup details.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   PostcallTranscribeEnabled:
     Default: true
     Description: Set to false if post-call transcription should not be enabled on the package level. See installation guide for setup details.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   PostcallCTRImportEnabled:
     Default: true
     Description: Set to false if importing CTRs into Salesforce should not be enabled on the package level.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   HistoricalReportingImportEnabled:
     Default: true
     Description: Set to false if importing Historical Reporting into Salesforce should not be enabled.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   RealtimeReportingImportEnabled:
     Default: true
     Description: Set to false if importing Realtime Reporting into Salesforce should not be enabled.
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-    - true
-    - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
+  ContactLensImportEnabled:
+    Default: true
+    Description: Set to false if importing Contact Lens into Salesforce should not be enabled.
+    Type: String
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   PrivateVpcEnabled:
     Default: false
     Description: Set to true if functions should be deployed to a private VPC, set VpcSecurityGroupList and VpcSubnetList if true
     Type: String
-    AllowedPattern: ^(true|false)$
-    AllowedValues:
-      - true
-      - false
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   VpcSecurityGroupList:
     Type: CommaDelimitedList
     Description: The list of SecurityGroupIds for the Virtual Private Cloud (VPC). Not required if PrivateVpcEnabled is set to false.
@@ -180,6 +161,7 @@ Conditions:
   PostcallCTRImportEnabledCondition: !Equals [!Ref PostcallCTRImportEnabled, true]
   HistoricalReportingImportEnabledCondition: !Equals [!Ref HistoricalReportingImportEnabled, true]
   RealtimeReportingImportEnabledCondition: !Equals [!Ref RealtimeReportingImportEnabled, true]
+  ContactLensImportEnabledCondition: !Equals [!Ref ContactLensImportEnabled, true]
   PrivateVpcEnabledCondition: !Equals [!Ref PrivateVpcEnabled, true]
 
   CTREventSourceMappingCondition:
@@ -217,7 +199,7 @@ Resources:
       PolicyDocument:
         Statement:
         - Action:
-          - secretsmanager:GetSecretValue
+          - secretsmanager:GetSecretValue #test
           - secretsmanager:PutSecretValue
           Effect: Allow
           Resource: !Ref SalesforceCredentialsSecretsManagerARN
@@ -231,6 +213,7 @@ Resources:
         Statement:
         - Action:
           - kms:decrypt
+          - kms:generatedatakey
           Effect: Allow
           Resource: !Ref SalesforceCredentialsKMSKeyARN
         Version: '2012-10-17'
@@ -625,6 +608,81 @@ Resources:
           Version: '2012-10-17'
         PolicyName: sfProcessTranscriptionResultSfInvokeAPIPolicy
 
+  sfProcessContactLensRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+        Version: '2012-10-17'
+      Path: /
+      ManagedPolicyArns:
+      - !Ref CloudWatchManagedPolicy
+      Policies:
+      - Fn::If:
+        - ContactLensImportEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - s3:GetObject
+              - s3:PutObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensResultS3Policy
+        - Ref: AWS::NoValue
+      - Fn::If:
+        - ContactLensImportEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - s3:GetObject
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/connect/${AmazonConnectInstanceId}/CallRecordings/*
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensRecordingS3Policy
+        - Ref: AWS::NoValue  
+      - Fn::If:
+        - ContactLensImportEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - s3:GetObject
+              - s3:ListBucket
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
+                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensDataS3Policy
+        - Ref: AWS::NoValue  
+      - Fn::If:
+        - ContactLensImportEnabledCondition
+        - PolicyDocument:
+            Statement:
+            - Action: 
+              - connect:GetContactAttributes
+              Effect: Allow
+              Resource:
+                - Fn::Sub: arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${AmazonConnectInstanceId}/contact/*            
+            Version: '2012-10-17'
+          PolicyName: sfProcessContactLensConnectPolicy
+        - Ref: AWS::NoValue  
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource:
+              Fn::GetAtt: sfInvokeAPI.Arn
+          Version: '2012-10-17'
+        PolicyName: sfProcessContactLensSfInvokeAPIPolicy
 
   sfTranscribeStateMachineRole:
     Type: AWS::IAM::Role
@@ -876,16 +934,6 @@ Resources:
           LOGGING_LEVEL:
             Ref: LambdaLoggingLevel
 
-  sfSig4RequestToS3:
-    Condition: PostcallRecordingImportEnabledCondition
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: sfSig4RequestToS3.handler
-      Runtime: nodejs12.x
-      AutoPublishAlias: live
-      Role:
-        Fn::GetAtt: sfSig4RequestToS3Role.Arn
-
   invokeSfGenerateAudioRecordingStreamingURLPolicy:
     Condition: PostcallRecordingImportEnabledCondition
     Type: AWS::IAM::ManagedPolicy
@@ -913,10 +961,6 @@ Resources:
             TargetOriginId: AudioRecordingStreamingCloudFrontOrigin
             TrustedSigners: [self]
             ViewerProtocolPolicy: redirect-to-https
-            LambdaFunctionAssociations:
-                - 
-                  EventType: origin-request
-                  LambdaFunctionARN: !Ref sfSig4RequestToS3.Version
           Enabled: true
           IPV6Enabled: true
           Origins: 
@@ -928,7 +972,7 @@ Resources:
               - TLSv1.2
             OriginCustomHeaders:
             - HeaderName: Access-Control-Allow-Origin
-              HeaderValue: !Ref SalesforceHost
+              HeaderValue: "https://www.google.com"
             OriginPath: /connect
 
   sfGetTranscribeJobStatus:
@@ -1040,6 +1084,30 @@ Resources:
           LOGGING_LEVEL:
             Ref: LambdaLoggingLevel
 
+  sfProcessContactLens:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: sfProcessContactLens.lambda_handler
+      Role:
+        Fn::GetAtt: sfProcessContactLensRole.Arn
+      Timeout: 60
+      Layers:
+        - Ref: sfLambdaLayer
+      Environment:
+        Variables:
+          SFDC_INVOKE_API_LAMBDA:
+            Fn::GetAtt: sfInvokeAPI.Arn
+          SF_ADAPTER_NAMESPACE:
+            Ref: SalesforceAdapterNamespace
+          TRANSCRIPTS_DESTINATION:
+            Ref: TranscribeOutputS3BucketName
+          CONTACT_LENS_IMPORT_ENABLED:
+            Ref: ContactLensImportEnabled
+          AMAZON_CONNECT_INSTANCE_ID:
+            Ref: AmazonConnectInstanceId
+          LOGGING_LEVEL:
+            Ref: LambdaLoggingLevel
+          
 
   sfRealTimeQueueMetricsLoopJobStateMachine:
     Type: AWS::StepFunctions::StateMachine

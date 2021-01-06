@@ -50,7 +50,6 @@ def lambda_handler(event, context):
   data = s3.get_object(Bucket=bucket, Key=key)["Body"].read().decode()
 
   sf = Salesforce()
-  sf.sign_in()
 
   for record in csv.DictReader(data.split("\n")):
     queue_record = prepare_queue_record(record, event_record['eventTime'])

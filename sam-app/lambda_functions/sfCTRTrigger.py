@@ -48,7 +48,7 @@ def invoke_sfExec_async(event, context):
         event_to_send = event_template.copy()
         event_to_send['record'] = data_to_send
         
-        if os.environ["POSTCALL_RECORDING_IMPORT_ENABLED"] == 'true' or os.environ["POSTCALL_TRANSCRIBE_ENABLED"] == 'true' or os.environ["CONTACT_LENS_IMPORT_ENABLED"] == 'true':
+        if os.environ["POSTCALL_RECORDING_IMPORT_ENABLED"] == 'true' or os.environ["POSTCALL_TRANSCRIBE_ENABLED"] == 'true':
             logger.info('Invoke  EXECUTE_TRANSCRIPTION_STATE_MACHINE_LAMBDA')
             boto3.client('lambda').invoke(FunctionName=os.environ["EXECUTE_TRANSCRIPTION_STATE_MACHINE_LAMBDA"], InvocationType='Event', Payload=json.dumps(event_to_send))
         

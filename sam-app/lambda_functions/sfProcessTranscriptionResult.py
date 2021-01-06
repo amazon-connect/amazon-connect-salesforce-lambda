@@ -149,3 +149,4 @@ def updateLock(Bucket, ContactId, oMetadata):
         logger.error('Error lock: {}'.format(e))
         logger.error('Current data: {}'.format(ContactId))
         raise e
+    

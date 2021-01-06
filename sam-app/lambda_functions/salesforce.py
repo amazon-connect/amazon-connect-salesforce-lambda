@@ -68,40 +68,25 @@ class Salesforce:
     self.consumer_key = self.secrets["ConsumerKey"]
     self.consumer_secret = self.secrets["ConsumerSecret"]
     self.auth_token = self.secrets["AuthToken"] if "AuthToken" in self.secrets else ''
-    self.auth_token_expiration = self.secrets["AuthTokenExpiration"] or 0 if "AuthTokenExpiration" in self.secrets else 0
+    self.headers = { 
+      'Authorization': 'Bearer %s' % self.auth_token,
+      'Content-Type': 'application/json'
+    }
     logger.info("Credentials Loaded")
 
   def set_production(self):
     self.login_host = 'https://login.salesforce.com'
 
-  def sign_in(self):
-    logger.info("Salesforce: Sign in")
-    time = datetime.datetime.utcnow()
-
-    if not self.auth_token or time >= datetime.datetime.utcfromtimestamp(self.auth_token_expiration): # stored access token no longer valid
-      logger.info("Retrieving new Salesforce OAuth token")
-      headers = { 'Content-Type': 'application/x-www-form-urlencoded' }
-      resp = self.request.post(url=self.login_host+"/services/oauth2/token", params=self.auth_data, headers=headers, hideData=True)
-      data = resp.json()
-      self.auth_token = self.secrets["AuthToken"] = data['access_token']
-      self.secrets["AuthTokenExpiration"] = (time + datetime.timedelta(minutes=13)).timestamp() # sf access token expires at most every 15 minutes; give ourselves a small buffer
-      self.secrets_manager_client.put_secret_value(SecretId=self.sf_credentials_secrets_manager_arn, SecretString=json.dumps(self.secrets))
-
-    self.headers = { 
-      'Authorization': 'Bearer %s' % self.auth_token,
-      'Content-Type': 'application/json'
-    }
-
   def search(self, query):
     logger.info("Salesforce: Search")
     url = '%s/services/data/%s/search' % (self.host, self.version)
-    resp = self.request.get(url=url, params={'q':query}, headers=self.headers)
+    resp = self.makeRequest(self.request.get, **{"url": url, "params":{'q':query}})
     return resp.json()['searchRecords']
 
   def query(self, query):#TODO: create generator that takes care of subsequent request for more than 200 records
     logger.info("Salesforce: Query")
     url = '%s/services/data/%s/query' % (self.host, self.version)
-    resp = self.request.get(url=url, params={'q':query}, headers=self.headers)
+    resp = self.makeRequest(self.request.get, **{"url": url, "params":{'q':query}})
     data = resp.json()
     for record in data['records']:
         del record['attributes']
@@ -110,7 +95,7 @@ class Salesforce:
   def parameterizedSearch(self, data):#TODO: create generator that takes care of subsequent request for more than 200 records
     logger.info("Salesforce: Query")
     url = '%s/services/data/%s/parameterizedSearch' % (self.host, self.version)
-    resp = self.request.post(url=url, data=data, headers=self.headers)
+    resp = self.makeRequest(self.request.post, **{"url": url, "data": data})
     data = resp.json()
 
     for record in data['searchRecords']:
@@ -120,24 +105,24 @@ class Salesforce:
   def update(self, sobject, sobj_id, data):
     logger.info("Salesforce: Update")
     url = '%s/services/data/%s/sobjects/%s/%s' % (self.host, self.version, sobject, sobj_id)
-    resp = self.request.patch(url=url, data=data, headers=self.headers)
+    resp = self.makeRequest(self.request.patch, **{"url": url, "data": data})
     return resp.status_code
 
   def update_by_external(self, sobject, field, sobj_id, data):
     logger.info("Salesforce: Update by external")
     url = '%s/services/data/%s/sobjects/%s/%s/%s' % (self.host, self.version, sobject, field, sobj_id)
-    self.request.patch(url=url, data=data, headers=self.headers)
+    self.makeRequest(self.request.patch, **{"url": url, "data": data})
 
   def create(self, sobject, data):
     logger.info("Salesforce: Create")
     url = '%s/services/data/%s/sobjects/%s' % (self.host, self.version, sobject)
-    resp = self.request.post(url=url, data=data, headers=self.headers)
+    resp = self.makeRequest(self.request.post, **{"url": url, "data": data})
     return resp.json()['id']
 
   def delete(self, sobject, sobject_id):
     logger.info("Salesforce: Delete")
     url = '%s/services/data/%s/sobjects/%s/%s' % (self.host, self.version, sobject, sobject_id)
-    resp = self.request.delete(url=url, headers=self.headers)
+    resp = self.makeRequest(self.request.delete, **{"url": url})
 
   def is_authenticated(self):
     return self.auth_token and self.host
@@ -175,7 +160,7 @@ class Salesforce:
         'feedElementType' : data['sf_feedElementType'],
         'subjectId' : data['sf_subjectId']
       }
-    resp = self.request.post(url=url, data=data, headers=self.headers)
+    resp = self.makeRequest(self.request.post, **{"url": url, "data": data})
     return resp.json()['id']
 
   def createChatterComment(self, sfeedElementId, data):
@@ -190,8 +175,25 @@ class Salesforce:
         }]
       }
     }
-    resp = self.request.post(url=url, data=data, headers=self.headers)
+    resp = self.makeRequest(self.request.post, **{"url": url, "data": data})
     return resp.json()['id']
+  
+  def makeRequest(self, requestMethod, **kwargs):
+    try:
+      return requestMethod(**kwargs, headers=self.headers)
+    except InvalidAuthTokenException as e:
+      # try re-fetching auth token
+      logger.info("Retrieving new Salesforce OAuth token")
+      headers = { 'Content-Type': 'application/x-www-form-urlencoded' }
+      resp = self.request.post(url=self.login_host+"/services/oauth2/token", params=self.auth_data, headers=headers, hideData=True)
+      data = resp.json()
+      self.auth_token = self.secrets["AuthToken"] = data['access_token']
+      self.headers = kwargs['headers'] = { 
+        'Authorization': 'Bearer %s' % self.auth_token,
+        'Content-Type': 'application/json'
+      }
+      self.secrets_manager_client.put_secret_value(SecretId=self.sf_credentials_secrets_manager_arn, SecretString=json.dumps(self.secrets))
+      return requestMethod(**kwargs)
 
 class Request:
   def post(self, url, headers, data=None, params=None, hideData=False):
@@ -225,6 +227,9 @@ def __check_resp__(resp):
   if resp.status_code // 100 == 2: 
     return resp
   
+  if resp.status_code == 401:
+    raise InvalidAuthTokenException("")
+  
   data = resp.json()
   if 'error' in data:
     msg = "%s: %s" % (data['error'], data['error_description'])
@@ -241,3 +246,6 @@ def __check_resp__(resp):
   msg = "request returned status code: %d" % resp.status_code
   logger.error(msg)
   raise Exception(msg)
+
+class InvalidAuthTokenException(Exception):
+  pass
