@@ -148,7 +148,6 @@ def ac_queue_metrics(queue_id_name_dict,queue_ids, instance_id):
 
 
             sf = Salesforce()
-            sf.sign_in()
 
             if len(metricresults_data) !=0:
                 while i < len(metricresults_data):

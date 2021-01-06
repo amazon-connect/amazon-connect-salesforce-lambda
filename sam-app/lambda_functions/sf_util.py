@@ -33,6 +33,9 @@ import os
 logger = logging.getLogger()
 
 def parse_date(value, date=datetime.now()):
+    if type(value) is not str:
+        return value
+        
     if "|" not in value:
         return value
 
@@ -167,3 +170,4 @@ def text_replace_string(string, word_map):
             raise Exception("ERROR: string is improperly formatted")
         string = string[:startIndex] + word_map[key] + string[endIndex+2:]
     return string
+

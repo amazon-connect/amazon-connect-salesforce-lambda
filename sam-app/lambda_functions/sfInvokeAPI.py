@@ -29,7 +29,14 @@ from datetime import datetime, timedelta
 from sf_util import parse_date, text_replace_string
 logger = logging.getLogger()
 logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
-
+pnamespace = os.environ['SF_ADAPTER_NAMESPACE']
+if not pnamespace or pnamespace == '-':
+    logger.info("SF_ADAPTER_NAMESPACE is empty")
+    pnamespace = ''
+else:
+    pnamespace = pnamespace + "__"
+    
+    
 def removekey(d, key):
     r = dict(d)
     del r[key]
@@ -38,7 +45,6 @@ def removekey(d, key):
 def lambda_handler(event, context):
   logger.info("event: %s" % json.dumps(event))
   sf = Salesforce()
-  sf.sign_in()
 
   sf_operation = str(event['Details']['Parameters']['sf_operation'])
   parameters = dict(event['Details']['Parameters'])
@@ -97,11 +103,21 @@ def where_parser(key, value):
   return "%s='%s'" % (key, value)
 
 def create(sf, sf_object, **kwargs):
-  data = {k:parse_date(v) for k,v in kwargs.items()}
+  # Temp fix for using pipe for ContactLensMatchedCategories
+  data = {}
+  if (sf_object == pnamespace + 'AC_ContactChannelAnalytics__c'):
+    data = {k:v for k,v in kwargs.items()}
+  else: 
+    data = {k:parse_date(v) for k,v in kwargs.items()} 
   return {'Id':sf.create(sobject=sf_object, data=data)}
 
 def update(sf, sf_object, sf_id, **kwargs):
-  data = {k:parse_date(v) for k,v in kwargs.items()}
+  # Temp fix for using pipe for ContactLensMatchedCategories
+  data = {}
+  if (sf_object == pnamespace + 'AC_ContactChannelAnalytics__c'):
+    data = {k:v for k,v in kwargs.items()}
+  else: 
+    data = {k:parse_date(v) for k,v in kwargs.items()} 
   return {'Status':sf.update(sobject=sf_object, sobj_id=sf_id, data=data)}
 
 def phoneLookup(sf, phone, sf_fields):

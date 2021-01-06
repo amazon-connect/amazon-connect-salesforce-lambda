@@ -130,7 +130,6 @@ def create_ctr_record(ctr):
     logger.info(f'Record : {sf_request}')
 
     sf = Salesforce()
-    sf.sign_in()
     sf.update_by_external(objectnamespace + "AC_ContactTraceRecord__c", objectnamespace + 'ContactId__c', ctr['ContactId'], sf_request)
 
     logger.info(f'Record Created Successfully')
