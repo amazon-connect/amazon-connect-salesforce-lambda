@@ -49,11 +49,13 @@ def lambda_handler(event, context):
   logger.info("key: %s" % key)
   data = s3.get_object(Bucket=bucket, Key=key)["Body"].read().decode()
 
+  runtime_region = os.environ['AWS_REGION']
+
   sf = Salesforce()
 
   for record in csv.DictReader(data.split("\n")):
     queue_record = prepare_queue_record(record, event_record['eventTime'])
-    ac_record_id = "%s%s" % (queue_record[pnamespace + 'AC_Object_Name__c'], queue_record[pnamespace + 'StartInterval__c'])
+    ac_record_id = "%s%s%s" % (queue_record[pnamespace + 'AC_Object_Name__c'], queue_record[pnamespace + 'StartInterval__c'], runtime_region)  # Add AWS region into recordID for multi-instance setup
     #logger.info("sfIntervalAgent ac_record_id: %s" % ac_record_id)
     #logger.info("sfIntervalAgent record: %s" % queue_record)
     # logger.info("sfIntervalAgent record: %s" % agent_record)
