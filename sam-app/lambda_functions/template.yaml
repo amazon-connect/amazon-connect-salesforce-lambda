@@ -961,9 +961,18 @@ Resources:
             TargetOriginId: AudioRecordingStreamingCloudFrontOrigin
             TrustedSigners: [self]
             ViewerProtocolPolicy: redirect-to-https
+          CacheBehaviors:
+          - AllowedMethods: [GET, HEAD, OPTIONS]
+            Compress: true
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+            OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf # Managed-CORS-S3Origin
+            PathPattern: /Voice/*
+            TargetOriginId: AudioRecordingStreamingCloudFrontOrigin-analysis
+            TrustedSigners: [self]
+            ViewerProtocolPolicy: redirect-to-https
           Enabled: true
           IPV6Enabled: true
-          Origins: 
+          Origins:
           - DomainName: !Join ['.', [!Ref ConnectRecordingS3BucketName, 's3', !Ref 'AWS::Region', 'amazonaws.com']]
             Id: AudioRecordingStreamingCloudFrontOrigin
             CustomOriginConfig:
@@ -972,8 +981,18 @@ Resources:
               - TLSv1.2
             OriginCustomHeaders:
             - HeaderName: Access-Control-Allow-Origin
-              HeaderValue: "https://www.google.com"
-            OriginPath: /connect
+              HeaderValue: !Ref SalesforceHost
+            OriginPath: /connect 
+          - DomainName: !Join ['.', [!Ref ConnectRecordingS3BucketName, 's3', !Ref 'AWS::Region', 'amazonaws.com']]
+            Id: AudioRecordingStreamingCloudFrontOrigin-analysis
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: 
+              - TLSv1.2
+            OriginCustomHeaders:
+            - HeaderName: Access-Control-Allow-Origin
+              HeaderValue: !Ref SalesforceHost
+            OriginPath: /Analysis
 
   sfGetTranscribeJobStatus:
     Type: AWS::Serverless::Function
