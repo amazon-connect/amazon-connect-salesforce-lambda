@@ -57,7 +57,11 @@ def lambda_handler(event, context):
     logger.info("Cloudfront credentials retrieved")
 
     # construct url to audio recording
-    recordingPath = event['recordingPath'].split("/connect/", 1)[1] # need to remove bucket name, connect dir from path
+    if '/connect/' in event['recordingPath']:
+        recordingPath = event['recordingPath'].split("/connect/", 1)[1] # need to remove bucket name, connect dir from path
+    elif '/Analysis/' in event['recordingPath']:
+        recordingPath = event['recordingPath'].split("/Analysis/", 1)[1] # For the contact lens recordings
+
     cloudfront_domain = get_arg(os.environ, 'CLOUDFRONT_DISTRIBUTION_DOMAIN_NAME')
     url = 'https://' + cloudfront_domain + '/' + recordingPath
     logger.info('Unsigned audio recording url: %s' % url)
