@@ -109,7 +109,7 @@ def processContactLensConversationCharacteristics(contactLensObj, connectBucket,
     contactId = contactLensObj['CustomerMetadata']['ContactId']
     if ('postcallRedactedRecordingImportEnabled' in contactAttributes and contactAttributes['postcallRedactedRecordingImportEnabled'] == 'true'):
         logger.info('Redacted recording import is enabled')
-        redactedRecordingLocation = getRedactedRecordingLocation(ContactId, connectBucket)
+        redactedRecordingLocation = getRedactedRecordingLocation(contactId, connectBucket)
         resultSet['recordingPath'] = redactedRecordingLocation
     else:
         resultSet['recordingPath'] = None

@@ -199,7 +199,7 @@ Resources:
       PolicyDocument:
         Statement:
         - Action:
-          - secretsmanager:GetSecretValue #test
+          - secretsmanager:GetSecretValue
           - secretsmanager:PutSecretValue
           Effect: Allow
           Resource: !Ref SalesforceCredentialsSecretsManagerARN
@@ -972,7 +972,7 @@ Resources:
               - TLSv1.2
             OriginCustomHeaders:
             - HeaderName: Access-Control-Allow-Origin
-              HeaderValue: "https://www.google.com"
+              HeaderValue: !Ref SalesforceHost
             OriginPath: /connect
 
   sfGetTranscribeJobStatus:
