@@ -973,8 +973,7 @@ Resources:
             OriginCustomHeaders:
             - HeaderName: Access-Control-Allow-Origin
               HeaderValue: !Ref SalesforceHost
-            OriginPath: /connect
-
+              
   sfGetTranscribeJobStatus:
     Type: AWS::Serverless::Function
     Properties:

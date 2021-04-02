@@ -121,6 +121,8 @@ def update(sf, sf_object, sf_id, **kwargs):
   return {'Status':sf.update(sobject=sf_object, sobj_id=sf_id, data=data)}
 
 def phoneLookup(sf, phone, sf_fields):
+  if (phone.lower() == 'anonymous'):
+    return {'sf_count':0}
   phone_national = str(phonenumbers.parse(phone, None).national_number)
 
   data = {
