@@ -34,7 +34,7 @@ from sfContactLensUtil import processContactLensTranscript, processContactLensCo
 
 def lambda_handler(event, context):
     # Check if Contact Lens is enabled at application level
-    if os.environ["CONTACT_LENS_IMPORT_ENABLED"] != 'true':
+    if os.environ["CONTACT_LENS_IMPORT_ENABLED"].lower() != 'true':
         logger.warning('Contact Lens Import is disabled')
         return {"Done": False}
 

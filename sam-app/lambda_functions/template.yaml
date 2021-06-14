@@ -156,13 +156,13 @@ Parameters:
 
 
 Conditions:
-  PostcallRecordingImportEnabledCondition: !Equals [!Ref PostcallRecordingImportEnabled, true ]
-  PostcallTranscribeEnabledCondition: !Equals [!Ref PostcallTranscribeEnabled, true]
-  PostcallCTRImportEnabledCondition: !Equals [!Ref PostcallCTRImportEnabled, true]
-  HistoricalReportingImportEnabledCondition: !Equals [!Ref HistoricalReportingImportEnabled, true]
-  RealtimeReportingImportEnabledCondition: !Equals [!Ref RealtimeReportingImportEnabled, true]
-  ContactLensImportEnabledCondition: !Equals [!Ref ContactLensImportEnabled, true]
-  PrivateVpcEnabledCondition: !Equals [!Ref PrivateVpcEnabled, true]
+  PostcallRecordingImportEnabledCondition: !Or [!Equals [!Ref PostcallRecordingImportEnabled, true ], !Equals [!Ref PostcallRecordingImportEnabled, 'True' ]]
+  PostcallTranscribeEnabledCondition: !Or [!Equals [!Ref PostcallTranscribeEnabled, true], !Equals [!Ref PostcallTranscribeEnabled, 'True']]
+  PostcallCTRImportEnabledCondition: !Or [!Equals [!Ref PostcallCTRImportEnabled, true], !Equals [!Ref PostcallCTRImportEnabled, 'True']]
+  HistoricalReportingImportEnabledCondition: !Or [!Equals [!Ref HistoricalReportingImportEnabled, true], !Equals [!Ref HistoricalReportingImportEnabled, 'True']]
+  RealtimeReportingImportEnabledCondition: !Or [!Equals [!Ref RealtimeReportingImportEnabled, true], !Equals [!Ref RealtimeReportingImportEnabled, 'True']]
+  ContactLensImportEnabledCondition: !Or [!Equals [!Ref ContactLensImportEnabled, true], !Equals [!Ref ContactLensImportEnabled, 'True']]
+  PrivateVpcEnabledCondition: !Or [!Equals [!Ref PrivateVpcEnabled, true], !Equals [!Ref PrivateVpcEnabled, 'True']]
 
   CTREventSourceMappingCondition:
     !Or
@@ -973,7 +973,8 @@ Resources:
             OriginCustomHeaders:
             - HeaderName: Access-Control-Allow-Origin
               HeaderValue: !Ref SalesforceHost
-              
+            OriginPath: /connect
+
   sfGetTranscribeJobStatus:
     Type: AWS::Serverless::Function
     Properties:
