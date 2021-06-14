@@ -57,9 +57,7 @@ def lambda_handler(event, context):
     logger.info("Cloudfront credentials retrieved")
 
     # construct url to audio recording
-    if "/connect/" or "/Analysis/" not in event['recordingPath']:
-        logger.error("Invalid s3 path for recording.")
-    recordingPath = event['recordingPath'].split("/", 1)[1] # need to remove bucket name, connect dir from path
+    recordingPath = event['recordingPath'].split("/connect/", 1)[1] # need to remove bucket name, connect dir from path
     cloudfront_domain = get_arg(os.environ, 'CLOUDFRONT_DISTRIBUTION_DOMAIN_NAME')
     url = 'https://' + cloudfront_domain + '/' + recordingPath
     logger.info('Unsigned audio recording url: %s' % url)
