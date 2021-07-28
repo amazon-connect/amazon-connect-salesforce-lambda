@@ -192,7 +192,16 @@ class Salesforce:
         'Authorization': 'Bearer %s' % self.auth_token,
         'Content-Type': 'application/json'
       }
-      self.secrets_manager_client.put_secret_value(SecretId=self.sf_credentials_secrets_manager_arn, SecretString=json.dumps(self.secrets))
+      try:
+        self.secrets_manager_client.put_secret_value(SecretId=self.sf_credentials_secrets_manager_arn, SecretString=json.dumps(self.secrets))
+      except ClientError as e:
+        # LimitExceededException occurs when there are too many versions of a secret in SecretsManager.
+        # Secret versions are cleaned up in the background but sometimes this doesn't happen fast enough.
+        # In this case, the error is safe to ignore.
+        if e.response['Error']['Code'] == 'LimitExceededException':
+          logger.error(str(e))
+        else:
+          raise e
       return requestMethod(**kwargs)
 
 class Request:
