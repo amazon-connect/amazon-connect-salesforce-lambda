@@ -72,7 +72,6 @@ def create_ctr_record(ctr):
         sf_request[objectnamespace + 'AfterContactWorkDuration__c'] = ctr['Agent']['AfterContactWorkDuration']
         sf_request[objectnamespace + 'AfterContactWorkEndTimestamp__c'] = ctr['Agent']['AfterContactWorkEndTimestamp']
         sf_request[objectnamespace + 'AfterContactWorkStartTimestamp__c'] = ctr['Agent']['AfterContactWorkStartTimestamp']
-        sf_request[objectnamespace + 'AfterContactWorkStartTimestamp__c'] = ctr['Agent']['AfterContactWorkStartTimestamp']
         sf_request[objectnamespace + 'AgentConnectedToAgentTimestamp__c'] = ctr['Agent']['ConnectedToAgentTimestamp']
         sf_request[objectnamespace + 'AgentInteractionDuration__c'] = ctr['Agent']['AgentInteractionDuration']
         sf_request[objectnamespace + 'AgentCustomerHoldDuration__c'] = ctr['Agent']['CustomerHoldDuration']
@@ -88,10 +87,13 @@ def create_ctr_record(ctr):
     sf_request[objectnamespace + 'AgentConnectionAttempts__c'] = ctr['AgentConnectionAttempts']
     sf_request[objectnamespace + 'Attributes__c'] = json.dumps(ctr['Attributes'])
     sf_request[objectnamespace + 'Channel__c'] = ctr['Channel']
+    sf_request[objectnamespace + 'ConnectedToSystemTimestamp__c'] = ctr['ConnectedToSystemTimestamp']
 
     # Customer Data
     if ctr['CustomerEndpoint']:
         sf_request[objectnamespace + 'CustomerEndpointAddress__c'] = ctr['CustomerEndpoint']['Address']
+    if ctr['ContactDetails']:
+        sf_request[objectnamespace + 'ContactDetails__c'] = json.dumps(ctr['ContactDetails'])
 
     sf_request[objectnamespace + 'InitiationTimestamp__c'] = ctr['InitiationTimestamp']
     sf_request[objectnamespace + 'InitialContactId__c'] = ctr['InitialContactId']
@@ -101,6 +103,8 @@ def create_ctr_record(ctr):
     sf_request[objectnamespace + 'LastUpdateTimestamp__c'] = ctr['LastUpdateTimestamp']
     sf_request[objectnamespace + 'NextContactId__c'] = ctr['NextContactId']
     sf_request[objectnamespace + 'PreviousContactId__c'] = ctr['PreviousContactId']
+    sf_request[objectnamespace + 'DisconnectReason__c'] = ctr['DisconnectReason']
+    sf_request[objectnamespace + 'DisconnectTimestamp__c'] = ctr['DisconnectTimestamp']
 
     # Queue
     if ctr['Queue']:
@@ -115,6 +119,10 @@ def create_ctr_record(ctr):
         sf_request[objectnamespace + 'RecordingLocation__c'] = ctr['Recording']['Location']
         sf_request[objectnamespace + 'RecordingStatus__c'] = ctr['Recording']['Status']
         sf_request[objectnamespace + 'RecordingDeletionReason__c'] = ctr['Recording']['DeletionReason']
+    
+    # Reference
+    if ctr['References']:
+        sf_request[objectnamespace + 'References__c'] = json.dumps(ctr['References'])
 
     # System End Data
     if ctr['SystemEndpoint']:
