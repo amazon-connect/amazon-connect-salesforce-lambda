@@ -38,14 +38,16 @@ Parameters:
     AllowedPattern: (^$|^https(.*))
     Type: String
   SalesforceUsername:
-    Default: Salesforce API Username
-    Description: The username of a valid Salesforce API account for your environment.
+    Default: apiuser@<yoursalesforcedomain>.com
+    Description: The username of a valid Salesforce API account for your environment. Salesforce usernames are in the form of an email address.
       For example, user@domain.com
     Type: String
+    AllowedPattern: ^.+@.+\..+$
   SalesforceVersion:
     Default: v42.0
-    Description: To find the Salesforce Edition and API Version please visit https://help.salesforce.com/articleView?id=000199268&type=1
+    Description: To find the Salesforce Edition and API Version please visit https://help.salesforce.com/articleView?id=000199268&type=1. The pattern for this field is vXX.X
     Type: String
+    AllowedPattern: ^v[0-9]+\.[0-9]+$
   ConnectReportingS3BucketName:
     Default: ''
     Description: This is the S3 bucket where Amazon Connect stores scheduled reports. Please refer to http://docs.aws.amazon.com/connect/latest/adminguide/amazon-connect-instance.html#datastorage
@@ -278,8 +280,8 @@ Resources:
       PolicyDocument:
         Statement:
         - Action:
-          - kms:decrypt
-          - kms:generatedatakey
+          - kms:Decrypt
+          - kms:GenerateDataKey
           Effect: Allow
           Resource: !Ref SalesforceCredentialsKMSKeyARN
         Version: '2012-10-17'
@@ -347,6 +349,7 @@ Resources:
           - sts:AssumeRole
       ManagedPolicyArns:
         - !Ref CloudWatchManagedPolicy
+        - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - Fn::If:
         - AmazonConnectInstanceIdHasValue
@@ -421,7 +424,7 @@ Resources:
             - iam:CreateServiceLinkedRole
             Effect: Allow
             Resource: 
-              Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/aws-service-role/connect.amazonaws.com/*
+              Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/aws-service-role/connect.amazonaws.com*
           Version: '2012-10-17'
         PolicyName: sfExecuteAWSServiceServiceLinkedRolePolicy
       - Fn::If:
@@ -582,6 +585,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - PolicyDocument:
           Statement:
@@ -607,6 +611,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - PolicyDocument:
           Statement:
@@ -631,6 +636,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - PolicyDocument:
           Statement:
@@ -681,6 +687,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - PolicyDocument:
           Statement:
@@ -772,6 +779,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - Fn::If: 
         - CTREventSourceMappingCondition
@@ -813,6 +821,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - Fn::If:
         - sfProcessTranscriptionResultS3PolicyCondition
@@ -860,6 +869,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
       - !Ref CloudWatchManagedPolicy
+      - !If [PrivateVpcEnabledCondition, !Ref VpcManagedPolicy, !Ref AWS::NoValue]
       Policies:
       - Fn::If:
         - sfProcessContactLensResultS3PolicyCondition
@@ -1039,7 +1049,10 @@ Resources:
               SALESFORCE_HOST:
                 Ref: SalesforceHost
               SIG4_LAMBDA_ROLE_ARN:
-                Fn::GetAtt: sfSig4RequestToS3Role.Arn
+                Fn::If:
+                  - PostcallRecordingImportEnabledCondition
+                  - Fn::GetAtt: sfSig4RequestToS3Role.Arn
+                  - !Ref AWS::NoValue
 
   sfContactTraceRecord:
     Type: AWS::Serverless::Function
@@ -1179,6 +1192,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfRealTimeQueueMetricsLoopJob.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfRealTimeQueueMetricsLoopJobRole.Arn
       Layers:
@@ -1196,6 +1215,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfGenerateAudioRecordingStreamingURL.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfLambdaBasicExec.Arn
       Layers:
@@ -1242,6 +1267,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfGetTranscribeJobStatus.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfGetTranscribeJobStatusRole.Arn
       Layers:
@@ -1256,6 +1287,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfSubmitTranscribeJob.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue
       Role:
         Fn::GetAtt: sfSubmitTranscribeJobRole.Arn
       Layers:
@@ -1270,6 +1307,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfExecuteTranscriptionStateMachine.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfExecuteTranscriptionStateMachineRole.Arn
       Layers:
@@ -1297,6 +1340,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfCTRTrigger.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfCTRTriggerRole.Arn
       Layers:
@@ -1333,6 +1382,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfProcessTranscriptionResult.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfProcessTranscriptionResultRole.Arn
       Layers:
@@ -1351,6 +1406,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: sfProcessContactLens.lambda_handler
+      VpcConfig: 
+          !If
+            - PrivateVpcEnabledCondition
+            - SubnetIds: !Ref VpcSubnetList
+              SecurityGroupIds: !Ref VpcSecurityGroupList
+            - Ref: AWS::NoValue      
       Role:
         Fn::GetAtt: sfProcessContactLensRole.Arn
       Timeout: 60
