@@ -148,10 +148,24 @@ def delete(sf, sf_object, sf_id):
 # ****WARNING**** -- this function will be deprecated in future versions of the integration; please use search/searchOne.
 def lookup_all(sf, sf_object, sf_fields, **kwargs):
   where = " AND ".join([where_parser(*item) for item in kwargs.items()])
-  query_filter = (" WHERE" + where) if kwargs.__len__() > 0 else ''
+  query_filter = (" WHERE " + where) if kwargs.__len__() > 0 else ''
   query = "SELECT %s FROM %s  %s" % (sf_fields, sf_object, query_filter)
   records = sf.query(query=query)
-  return records
+
+  count = len(records)
+  result = {}
+  
+  if count > 0:
+    recordArray = {}
+    for record in records:
+      recordArray[str(records.index(record))] = flatten_json(record)
+
+    result['sf_records'] = recordArray
+  else:
+    result['sf_records'] = {}
+
+  result['sf_count'] = count
+  return flatten_json(result, '_')
 
 # ****WARNING**** -- this function will be deprecated in future versions of the integration; please use search/searchOne.
 def query(sf, query, **kwargs):
@@ -164,16 +178,16 @@ def query(sf, query, **kwargs):
   result = {}
   
   if count > 0:
-    recordArray = []
-    for record in records :
-      recordArray.append(flatten_json(record))
+    recordArray = {}
+    for record in records:
+      recordArray[str(records.index(record))] = flatten_json(record)
 
     result['sf_records'] = recordArray
   else:
-    result['sf_records'] = []
+    result['sf_records'] = {}
 
   result['sf_count'] = count
-  return result
+  return flatten_json(result, '_')
 
 # ****WARNING**** -- this function will be deprecated in future versions of the integration; please use search/searchOne.
 def queryOne(sf, query, **kwargs):
@@ -227,16 +241,16 @@ def search(sf, q, sf_fields, sf_object, where="", overallLimit=100, **kwargs):
   result = {}
   
   if count > 0:
-    recordArray = []
+    recordArray = {}
     for record in records:
-      recordArray.append(flatten_json(record))
+      recordArray[str(records.index(record))] = flatten_json(record)
 
     result['sf_records'] = recordArray
   else:
-    result['sf_records'] = []
+    result['sf_records'] = {}
 
   result['sf_count'] = count
-  return result
+  return flatten_json(result, '_')
 
 def searchOne(sf, q, sf_fields, sf_object, where="", **kwargs):
   obj = [ { 'name': sf_object } ]
@@ -254,13 +268,13 @@ def searchOne(sf, q, sf_fields, sf_object, where="", **kwargs):
   result['sf_count'] = count
   return result
 
-def flatten_json(nested_json):
+def flatten_json(nested_json, separator = '.'):
   out = {}
     
   def flatten(x, name=''):
     if type(x) is dict:
       for a in x:
-        flatten(x[a], name + a + '.')
+        flatten(x[a], name + a + separator)
     elif type(x) is list:
       i = 0
       for a in x: 
