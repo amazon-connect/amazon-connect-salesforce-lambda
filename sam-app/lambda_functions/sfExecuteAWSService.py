@@ -210,9 +210,13 @@ def retrieve_lambda_parameters(ConnectInstanceAlias):
     connectReportingS3BucketName = connect_client.list_instance_storage_configs(
         InstanceId=connectInstanceId, ResourceType="SCHEDULED_REPORTS"
     )["StorageConfigs"][0]["S3Config"]["BucketName"]
-    ctrKinesisARN = connect_client.list_instance_storage_configs(
+    ctrKinesisConfig = connect_client.list_instance_storage_configs(
         InstanceId=connectInstanceId, ResourceType="CONTACT_TRACE_RECORDS"
-    )["StorageConfigs"][0]["KinesisStreamConfig"]["StreamArn"]
+    )
+
+    ctrKinesisARN = ""
+    if ctrKinesisConfig["StorageConfigs"]:
+        ctrKinesisARN = ctrKinesisConfig["StorageConfigs"][0]["KinesisStreamConfig"]["StreamArn"]
 
     result = {
         "connectInstanceId": connectInstanceId,
