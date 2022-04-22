@@ -27,6 +27,10 @@ For more information, please see the [AppExchange listing](https://appexchange.s
 ![Screenshot](AmazonConnectSalesforceIntegration.png)
 
 
+## Deploying from Github
+To deploy from the Github package, you need to use the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html). 
+First we will need to zip up the lambda code, you can do this by running `zip -r -j sam-app/lambda_functions/sam-app-deployment-artifact.zip sam-app/lambda_functions` from the root folder of this repository. 
+After you do this, you can run `sam package` and `sam deploy` to deploy the lambda to your account.
 
 ## Security
 
