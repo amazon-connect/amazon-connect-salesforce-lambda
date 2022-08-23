@@ -142,6 +142,28 @@ def phoneLookup(sf, phone, sf_fields):
   result['sf_count'] = count
   return result
 
+def phoneLookupForAccount(sf, phone, sf_fields):
+  if (phone.lower() == 'anonymous'):
+    return {'sf_count':0}
+  phone_national = str(phonenumbers.parse(phone, None).national_number)
+
+  data = {
+    'q':phone_national,
+    'sobjects':[{'name': 'Account'}],
+    'fields': sf_fields.split(", ") if isinstance(sf_fields, str) else sf_fields
+  }
+  records = sf.parameterizedSearch(data=data)
+
+  count = len(records)
+  
+  if (count > 0):
+    result = records[0]   
+  else:
+    result = {}
+
+  result['sf_count'] = count
+  return result
+
 def delete(sf, sf_object, sf_id):
   return {'Response': sf.delete(sobject=sf_object, sobject_id=sf_id)}
 
