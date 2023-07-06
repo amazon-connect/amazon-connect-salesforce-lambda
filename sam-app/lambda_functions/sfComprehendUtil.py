@@ -184,11 +184,14 @@ def processTranscript(iItems):
         transcript['content'] = selectedAlternative
         if(len(transcripts)>0):
             lastItem = transcripts[len(transcripts)-1]
-            lastChar = lastItem['content'][len(lastItem['content'])-1]
-            if (float(transcript['start_time']) - float(lastItem['start_time']) <= 2.0) and (lastChar != '.' and lastChar != ',' and lastChar != '?' and lastChar != ':' and lastChar != '!'):
+            if len(lastItem['content']) == 0:
                lastItem['content'] += ' '+ selectedAlternative
             else:
-                transcripts.append(transcript)
+                lastChar = lastItem['content'][len(lastItem['content'])-1]
+                if (float(transcript['start_time']) - float(lastItem['start_time']) <= 2.0) and (lastChar != '.' and lastChar != ',' and lastChar != '?' and lastChar != ':' and lastChar != '!'):
+                    lastItem['content'] += ' '+ selectedAlternative
+                else:
+                    transcripts.append(transcript)
         else:
             transcripts.append(transcript)
     return transcripts
