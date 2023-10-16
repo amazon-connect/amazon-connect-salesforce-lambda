@@ -87,6 +87,10 @@ Parameters:
     Type: Number
     Default: 100
     Description: Maximum retry attempts on failure for lambdas triggered by Kinesis Events
+  CTREventSourceMappingBatchSize:
+    Type: Number
+    Default: 30
+    Description: Batch size for lambdas triggered by Kinesis Events
   SalesforceAdapterNamespace:
     Default: 'amazonconnect'
     Description: This is the namespace for CTI Adapter managed package. The default value is [amazonconnect]. If a non-managed package is used, leave this field blank.
@@ -232,7 +236,7 @@ Conditions:
 Globals:
     Function:
         Timeout: 6
-        Runtime: python3.7
+        Runtime: python3.10
         CodeUri: ./sam-app-deployment-artifact.zip
         
 Resources:
@@ -243,7 +247,7 @@ Resources:
       Description: Salesforce Lambda function external dependencies
       ContentUri: ./lambda_layers.zip
       CompatibleRuntimes:
-       - python3.7
+       - python3.10
 
   invokeSfExecuteAWSServicePolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1375,7 +1379,7 @@ Resources:
       FunctionName: 
         Fn::GetAtt: sfCTRTrigger.Arn
       StartingPosition: "LATEST"
-      BatchSize: 100
+      BatchSize: !Ref CTREventSourceMappingBatchSize
       MaximumRetryAttempts: !Ref CTREventSourceMappingMaximumRetryAttempts
 
   sfProcessTranscriptionResult:

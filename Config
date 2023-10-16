@@ -1,0 +1,48 @@
+# -*-perl-*-
+
+package.AmazonConnectSalesforceLambda = {
+    interfaces = (1.0);
+
+    deploy = {
+        generic = true;
+    };
+
+    build-environment = {
+        chroot = basic;
+        network-access = blocked;
+    };
+
+    # Use NoOpBuild. See https://w.amazon.com/index.php/BrazilBuildSystem/NoOpBuild
+    build-system = custom-build;
+    build-tools = {
+        1.0 = {
+            BrazilPath = 1.1;
+            BrazilPython = 3.0;
+        };
+    };
+
+    # Use runtime-dependencies for when you want to bring in additional
+    # packages when deploying.
+    # Use dependencies instead if you intend for these dependencies to
+    # be exported to other packages that build against you.
+    dependencies = {
+        1.0 = {
+            Boto3 = 1.x;
+            BotoCore = 1.x;
+            Python-chardet = 3.0.x;
+            Python-dateutil = 2.x;
+            Python-docutils = 0.x;
+            Python-idna = 2.x;
+            Python-jmespath = 0.9.x;
+            Python-phonenumbers = 8.x;
+            Requests = 2.x.x;
+            Six = 1.x.x;
+        };
+    };
+
+    runtime-dependencies = {
+        1.0 = {
+        };
+    };
+
+};
