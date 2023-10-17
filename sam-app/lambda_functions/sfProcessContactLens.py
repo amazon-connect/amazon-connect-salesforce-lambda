@@ -66,11 +66,14 @@ def lambda_handler(event, context):
             return {"Done": False}
 
         logger.info('Getting lock file metadata: %s ' % contactId)
-        oMetadata = getS3FileMetadata(os.environ['TRANSCRIPTS_DESTINATION'], contactId)
-
         mACContactChannelAnalyticsId = None
-        if 'ACContactChannelAnalyticsId'.lower() in oMetadata:
-            mACContactChannelAnalyticsId = oMetadata['ACContactChannelAnalyticsId'.lower()]
+        oMetadata = None
+        transcribeBucketExists = os.environ['TRANSCRIPTS_DESTINATION'] != ''
+        if transcribeBucketExists:
+            oMetadata = getS3FileMetadata(os.environ['TRANSCRIPTS_DESTINATION'], contactId)
+            
+            if 'ACContactChannelAnalyticsId'.lower() in oMetadata:
+                mACContactChannelAnalyticsId = oMetadata['ACContactChannelAnalyticsId'.lower()]
 
         logger.info('Processing ContactLens transcript')
         participants = contactLensObj['Participants']
@@ -85,8 +88,9 @@ def lambda_handler(event, context):
 
         createSalesforceObject(contactId, contactLensTranscripts, contactLensConversationCharacteristics, mACContactChannelAnalyticsId)
 
-        logger.info('Updating s3 metadata')
-        updateLock(os.environ['TRANSCRIPTS_DESTINATION'], contactId, oMetadata)
+        if transcribeBucketExists:
+            logger.info('Updating s3 metadata')
+            updateLock(os.environ['TRANSCRIPTS_DESTINATION'], contactId, oMetadata)
 
         logger.info('Done')
         return {"Done": True}

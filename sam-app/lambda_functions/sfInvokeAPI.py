@@ -75,6 +75,10 @@ def lambda_handler(event, context):
     resp = search(sf=sf, **event['Details']['Parameters'])
   elif (sf_operation == "searchOne"):
     resp = searchOne(sf=sf, **event['Details']['Parameters'])
+  elif (sf_operation == "searchSOSL"):
+    resp = searchSOSL(sf=sf, **event['Details']['Parameters'])
+  elif (sf_operation == "searchOneSOSL"):
+    resp = searchOneSOSL(sf=sf, **event['Details']['Parameters'])
   else:
     msg = "sf_operation unknown"
     logger.error(msg)
@@ -263,6 +267,38 @@ def searchOne(sf, q, sf_fields, sf_object, where="", **kwargs):
     'sobjects': obj
   }
   records = sf.parameterizedSearch(data=data)
+  count = len(records)
+  result = flatten_json(records[0]) if count == 1 else {}
+  result['sf_count'] = count
+  return result
+
+def searchSOSL(sf, query, **kwargs):
+  for key, value in kwargs.items():
+    logger.info("Replacing [%s] with [%s] in [%s]" % (key, value, query))
+    query = query.replace(key, value)
+
+  records = sf.search(query=query)
+  count = len(records)
+  result = {}
+  
+  if count > 0:
+    recordArray = {}
+    for record in records:
+      recordArray[str(records.index(record))] = flatten_json(record)
+
+    result['sf_records'] = recordArray
+  else:
+    result['sf_records'] = {}
+
+  result['sf_count'] = count
+  return flatten_json(result, '_')
+
+def searchOneSOSL(sf, query, **kwargs):
+  for key, value in kwargs.items():
+    logger.info("Replacing [%s] with [%s] in [%s]" % (key, value, query))
+    query = query.replace(key, value)
+
+  records = sf.query(query=query)
   count = len(records)
   result = flatten_json(records[0]) if count == 1 else {}
   result['sf_count'] = count
