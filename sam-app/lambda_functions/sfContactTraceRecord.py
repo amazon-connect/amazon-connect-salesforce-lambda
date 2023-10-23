@@ -102,6 +102,7 @@ def create_ctr_record(ctr):
     sf_request[objectnamespace + 'NextContactId__c'] = ctr['NextContactId']
     sf_request[objectnamespace + 'PreviousContactId__c'] = ctr['PreviousContactId']
     sf_request[objectnamespace + 'DisconnectTimestamp__c'] = ctr['DisconnectTimestamp']
+    sf_request[objectnamespace + 'DisconnectReason__c'] = ctr['DisconnectReason']
 
     # Queue
     if ctr['Queue']:
