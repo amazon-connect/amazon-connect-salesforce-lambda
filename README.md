@@ -27,6 +27,10 @@ For more information, please see the [AppExchange listing](https://appexchange.s
 ![Screenshot](AmazonConnectSalesforceIntegration.png)
 
 
+## CTI Adapter Versions Compatibility
+
+[Link to Compatibility Chart](https://amazon-connect.github.io/amazon-connect-salesforce-cti/docs/lightning/installation/04-salesforce-lambdas-manual-setup#compatibility-table)
+
 ## Deploying from Github
 To deploy from the Github package, you need to use the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html). 
 First we will need to zip up the lambda code, you can do this by running `zip -r -j sam-app/lambda_functions/sam-app-deployment-artifact.zip sam-app/lambda_functions` from the root folder of this repository. 
@@ -39,4 +43,3 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This project is licensed under the Apache-2.0 License.
-
