@@ -181,6 +181,9 @@ def processTranscript(iItems):
         for alternative in iTranscript['alternatives']:
             if(float(alternative['confidence']) > maxAlternativeConfidenceScore):
                 selectedAlternative = alternative['content']
+                maxAlternativeConfidenceScore = alternative['confidence']
+        if(len(selectedAlternative) == 0):  # if the selected alternative to be added is empty then it must not be added. this will prevent lastItem to ever be empty 
+            continue
         transcript['content'] = selectedAlternative
         if(len(transcripts)>0):
             lastItem = transcripts[len(transcripts)-1]

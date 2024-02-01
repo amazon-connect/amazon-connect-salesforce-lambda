@@ -165,6 +165,9 @@ def createACContactChannelAnalyticsSalesforceObject(contactId, customerEndpoint,
     sfRequest['Details']['Parameters'][pnamespace + 'ContactId__c'] = contactId
     sfRequest['Details']['Parameters'][pnamespace + 'RecordingPath__c'] = recordingPath
     sfRequest['Details']['Parameters'][pnamespace + 'CustomerEndpointAddress__c'] = customerEndpoint['Address']
+    sfRequest['Details']['Parameters'][pnamespace + 'InstanceId__c'] = os.environ['AMAZON_CONNECT_INSTANCE_ID']
+    sfRequest['Details']['Parameters'][pnamespace + 'Region__c'] = os.environ['AMAZON_CONNECT_INSTANCE_REGION']
+
 
     ACContactChannelAnalyticsId = invokeSfAPI(sfRequest)['Id']
     logger.info('SF Object Created, with ID: %s' % ACContactChannelAnalyticsId)
