@@ -1337,6 +1337,10 @@ Resources:
             Fn::GetAtt: sfInvokeAPI.Arn
           SF_ADAPTER_NAMESPACE:
             Ref: SalesforceAdapterNamespace
+          AMAZON_CONNECT_INSTANCE_ID:
+            Ref: AmazonConnectInstanceId
+          AMAZON_CONNECT_INSTANCE_REGION:
+            Ref: AWS::Region
           LOGGING_LEVEL:
             Ref: LambdaLoggingLevel
 
@@ -1616,5 +1620,3 @@ Resources:
               - Effect: Allow
                 Action: states:StartExecution
                 Resource: !Ref sfRealTimeQueueMetricsLoopJobStateMachine
-
-

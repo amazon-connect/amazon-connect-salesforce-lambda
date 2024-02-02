@@ -23,7 +23,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import json, csv, urllib.parse, logging, os
+import json, csv, urllib.parse, logging, os, re
 import boto3
 
 from salesforce import Salesforce
@@ -53,7 +53,8 @@ def lambda_handler(event, context):
 
   for record in csv.DictReader(data.split("\n")):
     queue_record = prepare_queue_record(record, event_record['eventTime'])
-    ac_record_id = "%s%s" % (queue_record[pnamespace + 'AC_Object_Name__c'], queue_record[pnamespace + 'StartInterval__c'])
+    queue_name = re.sub(r'[-\s\W]+', '', queue_record[pnamespace + 'AC_Object_Name__c'])
+    ac_record_id = "%s%s" % (queue_name, queue_record[pnamespace + 'StartInterval__c'])
     #logger.info("sfIntervalAgent ac_record_id: %s" % ac_record_id)
     #logger.info("sfIntervalAgent record: %s" % queue_record)
     # logger.info("sfIntervalAgent record: %s" % agent_record)
@@ -75,8 +76,10 @@ def label_parser(key):
 
   if key.lower() == "queue":
     return pnamespace + "AC_Object_Name__c"
+  
+  key = re.sub(r'[-\s]+', '_', key)
 
-  return pnamespace + "%s__c" % key.replace(" ", "_")
+  return pnamespace + "%s__c" % key
 
 def value_parser(value):
   return value.replace("%", "") if len(value) > 0 else None
