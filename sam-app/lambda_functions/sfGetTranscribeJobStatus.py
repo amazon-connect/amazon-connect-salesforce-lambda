@@ -26,10 +26,8 @@ limitations under the License.
 import boto3
 import json
 import datetime
-import logging
 import os
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 client = boto3.client('transcribe')
 
 

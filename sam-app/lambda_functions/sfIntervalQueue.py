@@ -23,13 +23,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import json, csv, urllib.parse, logging, os, re
+import json, csv, urllib.parse, os, re
 import boto3
 
 from salesforce import Salesforce
 from sf_util import get_arg, parse_date, split_bucket_key
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 s3 = boto3.client("s3")
 pnamespace = os.environ['SF_ADAPTER_NAMESPACE']

@@ -23,14 +23,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import json, logging, os
+import json, os
 import requests
 import boto3
 import datetime
 from botocore.exceptions import ClientError
 from sf_util import get_arg
-
-logger = logging.getLogger()
+from log_util import logger
 
 class Salesforce:
 

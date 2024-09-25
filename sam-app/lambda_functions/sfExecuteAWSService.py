@@ -25,15 +25,12 @@ limitations under the License.
 
 import boto3
 import botocore
-import logging
 import os
 import json
 import datetime
 import uuid
 from time import sleep
-
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 def lambda_handler(event, context):
     logger.info("event: %s" % json.dumps(event))

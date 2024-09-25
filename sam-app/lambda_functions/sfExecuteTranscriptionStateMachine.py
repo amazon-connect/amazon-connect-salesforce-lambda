@@ -30,9 +30,7 @@ import json
 import base64
 import uuid
 from sf_util import split_s3_bucket_key, invokeSfAPI
-import logging
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 
 def process_record(record):

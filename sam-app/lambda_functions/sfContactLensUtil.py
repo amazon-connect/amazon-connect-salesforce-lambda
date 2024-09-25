@@ -22,9 +22,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import logging, os, json, boto3
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+import os, json, boto3
+from log_util import logger
 
 def getDataSource():
     return 'Contact_Lens'

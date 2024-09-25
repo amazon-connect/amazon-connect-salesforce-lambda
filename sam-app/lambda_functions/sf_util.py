@@ -23,14 +23,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import logging
 from datetime import datetime, timedelta
 import base64
 import json
 import boto3
 import os
-
-logger = logging.getLogger()
+from log_util import logger
 
 def parse_date(value, date=datetime.now()):
     if type(value) is not str:
