@@ -23,12 +23,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import json, csv, urllib.parse, logging, os
+import json, csv, urllib.parse, os
 import boto3
 import botocore
 import base64
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 from sf_util import getS3FileMetadata, getS3FileJSONObject, getBase64String, attachFileSaleforceObject, invokeSfAPI, split_s3_bucket_key
 from sfContactLensUtil import processContactLensTranscript, processContactLensConversationCharacteristics, getDataSource, getContactAttributes
 

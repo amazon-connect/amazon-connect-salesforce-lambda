@@ -23,11 +23,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import logging
+from log_util import logger
 import boto3
 import json
-
-logger = logging.getLogger()
 
 
 def StartComprehendAnalysis(transcripts, compAnalysis, languageCode, segments):

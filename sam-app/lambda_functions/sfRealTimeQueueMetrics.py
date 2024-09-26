@@ -28,10 +28,7 @@ import boto3
 import urllib.parse
 from salesforce import Salesforce
 from sf_util import get_arg, parse_date, split_bucket_key
-
-import logging
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 objectnamespace = os.environ['SF_ADAPTER_NAMESPACE']
 

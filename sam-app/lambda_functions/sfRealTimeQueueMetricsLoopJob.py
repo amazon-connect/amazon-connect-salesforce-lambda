@@ -50,10 +50,7 @@ limitations under the License.
 
 import boto3
 import os
-import logging
-
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 client = boto3.client('lambda')
 

@@ -23,12 +23,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import logging, os, json, phonenumbers
+import os, json, phonenumbers
 from salesforce import Salesforce
 from datetime import datetime, timedelta
 from sf_util import parse_date, text_replace_string
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
+
 pnamespace = os.environ['SF_ADAPTER_NAMESPACE']
 if not pnamespace or pnamespace == '-':
     logger.info("SF_ADAPTER_NAMESPACE is empty")

@@ -27,8 +27,7 @@ import boto3
 import json
 import os
 import logging
-logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(os.environ["LOGGING_LEVEL"]))
+from log_util import logger
 
 
 def lambda_handler(event, context):
