@@ -1598,7 +1598,7 @@ Resources:
       Targets:
         -
           Arn: !Ref sfRealTimeQueueMetricsLoopJobStateMachine
-          Id: !Sub '${AWS::StackName}-sfRealTimeQueue'
+          Id: sfRealTimeQueue
           RoleArn: !GetAtt sfRealTimeQueueMetricsCronExecutionRole.Arn
 
   sfRealTimeQueueMetricsCronExecutionRole:
