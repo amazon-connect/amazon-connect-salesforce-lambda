@@ -27,6 +27,7 @@ import os
 import json
 import base64
 import logging
+import boto3
 from salesforce import Salesforce
 from log_util import logger
 
@@ -126,9 +127,15 @@ def create_ctr_record(ctr):
     if ctr['TransferCompletedTimestamp']:
         sf_request[objectnamespace + 'TransferCompletedTimestamp__c'] = ctr['TransferCompletedTimestamp']
 
+    sf = Salesforce()
+
+    # Only add the new region field if the field is available on the Salesforce org
+    if sf.isFieldInSObject(objectnamespace + 'AC_ContactTraceRecord__c', objectnamespace + 'Region__c'):
+        session = boto3.session.Session()
+        sf_request[objectnamespace + 'Region__c'] = session.region_name
+
     logger.info(f'Record : {sf_request}')
 
-    sf = Salesforce()
     sf.update_by_external(objectnamespace + "AC_ContactTraceRecord__c", objectnamespace + 'ContactId__c', ctr['ContactId'], sf_request)
 
     logger.info(f'Record Created Successfully')

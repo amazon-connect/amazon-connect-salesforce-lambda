@@ -537,6 +537,9 @@ Resources:
               Effect: Allow
               Resource:
                 - Fn::Sub: "arn:aws:s3:::${ConnectReportingS3BucketName}/*"
+              Condition:
+                StringEquals:
+                  s3:ResourceAccount: [!Ref AWS::AccountId]
             Version: '2012-10-17'
           PolicyName: sfLambdaBasicExecWithS3ReadReportingS3Policy
         - Ref: AWS::NoValue
@@ -660,6 +663,9 @@ Resources:
               Effect: Allow
               Resource:
                 - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
+              Condition:
+                StringEquals:
+                  s3:ResourceAccount: [!Ref AWS::AccountId]
             Version: '2012-10-17'
           PolicyName: sfSubmitTranscribeJobConnectRecordingS3Policy
         - !Ref AWS::NoValue
@@ -673,6 +679,9 @@ Resources:
               Effect: Allow
               Resource:
                 - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+              Condition:
+                StringEquals:
+                  s3:ResourceAccount: [!Ref AWS::AccountId]
             Version: '2012-10-17'
           PolicyName: sfSubmitTranscribeJobTranscribeOutputS3Policy
         - !Ref AWS::NoValue
@@ -715,6 +724,9 @@ Resources:
               Resource:
                 - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}
                 - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+              Condition:
+                StringEquals:
+                  s3:ResourceAccount: [!Ref AWS::AccountId]
             Version: '2012-10-17'
           PolicyName: sfExecuteTranscriptionStateMachineLockS3Policy
         - !Ref AWS::NoValue
@@ -727,6 +739,9 @@ Resources:
               Effect: Allow
               Resource:
                 - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
+              Condition:
+                StringEquals:
+                  s3:ResourceAccount: [!Ref AWS::AccountId]
             Version: '2012-10-17'
           PolicyName: sfExecuteTranscriptionStateMachineRecordingS3Policy
         - !Ref AWS::NoValue
@@ -837,6 +852,9 @@ Resources:
               Effect: Allow
               Resource:
                 - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+              Condition:
+                StringEquals:
+                  s3:ResourceAccount: [!Ref AWS::AccountId]
             Version: '2012-10-17'
           PolicyName: sfProcessTranscriptionResultS3Policy
         - Ref: AWS::NoValue
@@ -885,6 +903,9 @@ Resources:
               Effect: Allow
               Resource:
                 - Fn::Sub: arn:aws:s3:::${TranscribeOutputS3BucketName}/*
+              Condition:
+                StringEquals:
+                  s3:ResourceAccount: [!Ref AWS::AccountId]
             Version: '2012-10-17'
           PolicyName: sfProcessContactLensResultS3Policy
         - !Ref AWS::NoValue
@@ -897,6 +918,9 @@ Resources:
               Effect: Allow
               Resource:
                 - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/connect/${AmazonConnectInstanceId}/CallRecordings/*
+              Condition:
+                StringEquals:
+                  s3:ResourceAccount: [!Ref AWS::AccountId]
             Version: '2012-10-17'
           PolicyName: sfProcessContactLensRecordingS3Policy
         - !Ref AWS::NoValue
@@ -911,6 +935,9 @@ Resources:
               Resource:
                 - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
                 - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}
+              Condition:
+                StringEquals:
+                  s3:ResourceAccount: [!Ref AWS::AccountId]
             Version: '2012-10-17'
           PolicyName: sfProcessContactLensDataS3Policy
         - !Ref AWS::NoValue

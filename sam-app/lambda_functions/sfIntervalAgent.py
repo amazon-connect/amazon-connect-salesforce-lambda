@@ -58,6 +58,12 @@ def lambda_handler(event, context):
     agent_record = prepare_agent_record(record, event_record['eventTime'])
     ac_record_id = "%s%s" % (agent_record[pnamespace + 'AC_Object_Name__c'], agent_record[pnamespace + 'StartInterval__c'])
 
+    # Only add the new region field if the field is available on the Salesforce org
+    if sf.isFieldInSObject(pnamespace + 'AC_AgentPerformance__c', pnamespace + 'Region__c'):
+        session = boto3.session.Session()
+        agent_record[pnamespace + 'Region__c'] = session.region_name
+        ac_record_id = "%s%s" % (ac_record_id, session.region_name)
+
     sf.update_by_external(pnamespace + "AC_AgentPerformance__c", pnamespace + 'AC_Record_Id__c',ac_record_id, agent_record)
 
   logger.info("done")

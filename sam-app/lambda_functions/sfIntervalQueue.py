@@ -54,6 +54,13 @@ def lambda_handler(event, context):
     queue_record = prepare_queue_record(record, event_record['eventTime'])
     queue_name = re.sub(r'[-\s\W]+', '', queue_record[pnamespace + 'AC_Object_Name__c'])
     ac_record_id = "%s%s" % (queue_name, queue_record[pnamespace + 'StartInterval__c'])
+
+    # Only add the new region field if the field is available on the Salesforce org
+    if sf.isFieldInSObject(pnamespace + 'AC_HistoricalQueueMetrics__c', pnamespace + 'Region__c'):
+        session = boto3.session.Session()
+        queue_record[pnamespace + 'Region__c'] = session.region_name
+        ac_record_id = "%s%s" % (ac_record_id, session.region_name)
+
     #logger.info("sfIntervalAgent ac_record_id: %s" % ac_record_id)
     #logger.info("sfIntervalAgent record: %s" % queue_record)
     # logger.info("sfIntervalAgent record: %s" % agent_record)

@@ -205,8 +205,18 @@ def ac_queue_metrics(queue_id_name_dict,queue_ids, instance_id):
                                     contacts_scheduled = int(metrics_data['Value'])
                                     queue_metics_data_dict['contacts_scheduled'] = contacts_scheduled
                             j = j + 1
+
                         sObjectData = prepare_record(queue_id_name_dict,queue_metics_data_dict)
-                        sf.update_by_external(objectnamespace + "AC_QueueMetrics__c", objectnamespace + 'Queue_Id__c',queue_metics_data_dict['queue_id'],sObjectData)
+                        sQueueId = queue_metics_data_dict['queue_id']
+                        # If Region__c exists from Salesforce org, then multi-region is supported. Need to append the region to the Salesforce Queue Id
+                        if sf.isFieldInSObject(objectnamespace + 'AC_QueueMetrics__c', objectnamespace + 'Region__c'):
+                            logger.info("Multi-region enabled")
+                            session = boto3.session.Session()
+                            sObjectData[objectnamespace + 'Region__c'] = session.region_name
+                            sQueueId = sQueueId + '-' + session.region_name
+
+                        sf.update_by_external(objectnamespace + "AC_QueueMetrics__c", objectnamespace + 'Queue_Id__c', sQueueId, sObjectData)
+
                         i = i + 1
 
             logger.info("End ac_queue_metrics method")
