@@ -82,6 +82,19 @@ class Salesforce:
     resp = self.makeRequest(self.request.get, **{"url": url, "params":{'q':query}})
     return resp.json()['searchRecords']
 
+  def isFieldInSObject(self, sobject, field):
+    logger.info("Salesforce: DescribeSObject field")
+    url = '%s/services/data/%s/sobjects/%s/describe' % (self.host, self.version, sobject)
+    resp = self.makeRequest(self.request.get, **{"url": url, "params": {}})
+    fields = resp.json()['fields']
+    logger.info("Describe SObject Fields: " + str(fields))
+
+    #Check if field is on the list of fields for the specified sObject
+    for sf_field in fields:
+        if sf_field['name'] == field:
+            return True
+    return False
+
   def query(self, query):#TODO: create generator that takes care of subsequent request for more than 200 records
     logger.info("Salesforce: Query")
     url = '%s/services/data/%s/query' % (self.host, self.version)
