@@ -77,6 +77,12 @@ def prepare_agent_record(record_raw, current_date):
   return record
 
 def label_parser(key):
+
+  agent_status = ["Paperwork time","Training/Coaching time","Outbound Campaign time","Comfort Break time","In a meeting time","Paperwork time","On Lunch time"]
+  
+  if key in agent_status: 
+    return "%s__c" % key.replace(" ", "_").replace("/","_")
+    
   if key.lower() == 'average agent interaction and customer hold time':#To Long
     return pnamespace + 'Avg_agent_interaction_and_cust_hold_time__c'
 
