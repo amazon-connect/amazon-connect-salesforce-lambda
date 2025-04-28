@@ -206,10 +206,6 @@ Conditions:
     !And
     - Condition: ContactLensImportEnabledCondition
     - Condition: ConnectRecordingS3BucketNameHasValue
-  sfAudioRecordingStreamingCloudFrontDistributionCondition:
-    !And
-    - Condition: PostcallRecordingImportEnabledCondition
-    - Condition: ConnectRecordingS3BucketNameHasValue
   sfExecuteTranscriptionStateMachineLockS3PolicyCondition:
     !And
     - !Or
@@ -431,83 +427,6 @@ Resources:
               Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/aws-service-role/connect.amazonaws.com*
           Version: '2012-10-17'
         PolicyName: sfExecuteAWSServiceServiceLinkedRolePolicy
-      - Fn::If:
-        - sfAudioRecordingStreamingCloudFrontDistributionCondition
-        - PolicyDocument:
-            Statement:
-            - Action:
-              - cloudfront:GetDistributionConfig
-              - cloudfront:UpdateDistribution
-              Effect: Allow
-              Resource: 
-                Fn::Sub: arn:aws:cloudfront::${AWS::AccountId}:distribution/${sfAudioRecordingStreamingCloudFrontDistribution}
-            Version: '2012-10-17'
-          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyCloudfront
-        - !Ref AWS::NoValue
-      - Fn::If:
-        - sfAudioRecordingStreamingCloudFrontDistributionCondition
-        - PolicyDocument:
-            Statement:
-            - Action:
-              - iam:PassRole
-              Effect: Allow
-              Resource:
-                Fn::GetAtt: sfSig4RequestToS3Role.Arn
-            Version: '2012-10-17'
-          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyIAM
-        - !Ref AWS::NoValue
-      - Fn::If:
-        - sfAudioRecordingStreamingCloudFrontDistributionCondition
-        - PolicyDocument:
-            Statement:
-            - Action:
-              - cloudfront:CreatePublicKey
-              - cloudfront:CreateKeyGroup
-              Effect: Allow
-              Resource: '*'
-            Version: '2012-10-17'
-          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyCloudfrontKey
-        - !Ref AWS::NoValue
-      - Fn::If:
-        - sfAudioRecordingStreamingCloudFrontDistributionCondition
-        - PolicyDocument:
-            Statement:
-            - Action:
-              - lambda:EnableReplication
-              - lambda:PublishVersion
-              - lambda:CreateFunction
-              - lambda:GetFunction
-              Effect: Allow
-              Resource:
-                Fn::Sub: arn:aws:lambda:us-east-1:${AWS::AccountId}:function:*-sfSig4RequestToS3*
-            Version: '2012-10-17'
-          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyLambdaReplication
-        - !Ref AWS::NoValue
-      - Fn::If:
-        - sfAudioRecordingStreamingCloudFrontDistributionCondition
-        - PolicyDocument:
-            Statement:
-            - Action:
-              - lambda:InvokeFunction
-              Effect: Allow
-              Resource:
-                Fn::GetAtt: sfGenerateAudioRecordingStreamingURL.Arn
-            Version: '2012-10-17'
-          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyLambdaInvoke
-        - !Ref AWS::NoValue
-      - Fn::If:
-        - sfAudioRecordingStreamingCloudFrontDistributionCondition
-        - PolicyDocument:
-            Statement:
-            - Action:
-              - s3:GetBucketCors
-              - s3:PutBucketCors
-              Effect: Allow
-              Resource:
-                Fn::Sub: "arn:aws:s3:::${ConnectRecordingS3BucketName}"
-            Version: '2012-10-17'
-          PolicyName: sfExecuteAWSServiceConnectAudioRecordingPolicyS3
-        - !Ref AWS::NoValue
 
   sfLambdaBasicExecWithS3Read:
     Type: AWS::IAM::Role
@@ -754,35 +673,6 @@ Resources:
               Fn::GetAtt: sfInvokeAPI.Arn
           Version: '2012-10-17'
         PolicyName: sfExecuteTranscriptionStateMachineSfInvokeAPIPolicy
-
-  sfSig4RequestToS3Role:
-    Condition: PostcallRecordingImportEnabledCondition
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-        - Action: sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-            - edgelambda.amazonaws.com
-        Version: '2012-10-17'
-      Policies:
-      - Fn::If:
-        - ConnectRecordingS3BucketNameHasValue
-        - PolicyDocument:
-            Statement:
-            - Action:
-              - s3:GetObject
-              Effect: Allow
-              Resource: 
-                - Fn::Sub: arn:aws:s3:::${ConnectRecordingS3BucketName}/*
-            Version: '2012-10-17'
-          PolicyName: sfSig4RequestToS3RolePolicy
-        - !Ref AWS::NoValue
-      ManagedPolicyArns:
-        - !Ref CloudWatchManagedPolicy
 
   sfCTRTriggerRole:
     Type: AWS::IAM::Role
@@ -1057,33 +947,18 @@ Resources:
         Timeout: 10
         Environment:
             Variables:
-              GENERATE_AUDIO_RECORDING_LAMBDA:
-                Fn::If:
-                  - sfAudioRecordingStreamingCloudFrontDistributionCondition
-                  - !Ref sfGenerateAudioRecordingStreamingURL
-                  - !Ref AWS::NoValue
               CLOUDFORMATION_STACK_ID:
                 Ref: AWS::StackId
               CLOUDFORMATION_STACK_NAME:
                 Ref: AWS::StackName
               LOGGING_LEVEL:
                 Ref: LambdaLoggingLevel
-              CLOUDFRONT_DISTRIBUTION_ID:
-                Fn::If:
-                  - sfAudioRecordingStreamingCloudFrontDistributionCondition
-                  - !Ref sfAudioRecordingStreamingCloudFrontDistribution
-                  - !Ref AWS::NoValue
               RECORDING_BUCKET_NAME:
                 Ref: ConnectRecordingS3BucketName
               NAMESPACE:
                 Ref: SalesforceAdapterNamespace
               SALESFORCE_HOST:
                 Ref: SalesforceHost
-              SIG4_LAMBDA_ROLE_ARN:
-                Fn::If:
-                  - PostcallRecordingImportEnabledCondition
-                  - Fn::GetAtt: sfSig4RequestToS3Role.Arn
-                  - !Ref AWS::NoValue
 
   sfContactTraceRecord:
     Type: AWS::Serverless::Function
@@ -1240,59 +1115,6 @@ Resources:
             Fn::GetAtt: sfRealTimeQueueMetrics.Arn
           LOGGING_LEVEL:
             Ref: LambdaLoggingLevel
-
-  sfGenerateAudioRecordingStreamingURL:
-    Condition: sfAudioRecordingStreamingCloudFrontDistributionCondition
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: sfGenerateAudioRecordingStreamingURL.lambda_handler
-      VpcConfig: 
-          !If
-            - PrivateVpcEnabledCondition
-            - SubnetIds: !Ref VpcSubnetList
-              SecurityGroupIds: !Ref VpcSecurityGroupList
-            - Ref: AWS::NoValue      
-      Role:
-        Fn::GetAtt: sfLambdaBasicExec.Arn
-      Layers:
-        - Ref: sfLambdaLayer
-      Timeout: 10
-      Environment:
-        Variables:
-          SF_HOST:
-            Ref: SalesforceHost
-          SF_CREDENTIALS_SECRETS_MANAGER_ARN:
-            Ref: SalesforceCredentialsSecretsManagerARN
-          CLOUDFRONT_DISTRIBUTION_DOMAIN_NAME:
-            Fn::GetAtt: sfAudioRecordingStreamingCloudFrontDistribution.DomainName
-          LOGGING_LEVEL:
-            Ref: LambdaLoggingLevel
-
-  sfAudioRecordingStreamingCloudFrontDistribution:
-    Condition: sfAudioRecordingStreamingCloudFrontDistributionCondition
-    Type: AWS::CloudFront::Distribution
-    Properties: 
-      DistributionConfig:
-          DefaultCacheBehavior: 
-            AllowedMethods: [GET, HEAD, OPTIONS]
-            Compress: true
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
-            OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf # Managed-CORS-S3Origin
-            TargetOriginId: AudioRecordingStreamingCloudFrontOrigin
-            TrustedSigners: [self]
-            ViewerProtocolPolicy: redirect-to-https
-          Enabled: true
-          IPV6Enabled: true
-          Origins: 
-          - DomainName: !Join ['.', [!Ref ConnectRecordingS3BucketName, 's3', !Ref 'AWS::Region', 'amazonaws.com']]
-            Id: AudioRecordingStreamingCloudFrontOrigin
-            CustomOriginConfig:
-              OriginProtocolPolicy: https-only
-              OriginSSLProtocols: 
-              - TLSv1.2
-            OriginCustomHeaders:
-            - HeaderName: Access-Control-Allow-Origin
-              HeaderValue: !Ref SalesforceHost
 
   sfGetTranscribeJobStatus:
     Type: AWS::Serverless::Function
