@@ -160,6 +160,11 @@ Parameters:
     Type: CommaDelimitedList
     Description: The list of Subnets for the Virtual Private Cloud (VPC). Not required if PrivateVpcEnabled is set to false.
     Default: ''
+  SfInvokeApiTimeout:
+    Type: Number
+    Default: 0
+    Description: Override the Lambda timeout (in seconds). 0 means use global default.
+
 
 
 Conditions:
@@ -177,6 +182,7 @@ Conditions:
   SalesforceCredentialsKMSKeyARNHasValue: !Not [!Equals [!Ref SalesforceCredentialsKMSKeyARN, '']]
   CTRKinesisARNHasValue: !Not [!Equals [!Ref CTRKinesisARN, '']]
   AmazonConnectInstanceIdHasValue: !Not [!Equals [!Ref AmazonConnectInstanceId, '']]
+  SfInvokeApiTimeoutOverride: !Not [!Equals [!Ref SfInvokeApiTimeout, 0]]
 
   CTREventSourceMappingCondition:
     !And
@@ -1025,6 +1031,11 @@ Resources:
           Fn::GetAtt: sfLambdaBasicExec.Arn
         Layers:
           - Ref: sfLambdaLayer
+        Timeout:
+          !If
+            - SfInvokeApiTimeoutOverride
+            - !Ref SfInvokeApiTimeout
+            - !Ref AWS::NoValue # Default to Global.Function.Timeout
         Environment:
             Variables:
                 SF_HOST:
