@@ -27,7 +27,7 @@ import os, json, phonenumbers
 from salesforce import Salesforce
 from datetime import datetime, timedelta
 from sf_util import parse_date, text_replace_string
-from log_util import logger
+from log_util import logger, sanitize_log
 
 pnamespace = os.environ['SF_ADAPTER_NAMESPACE']
 if not pnamespace or pnamespace == '-':
@@ -43,7 +43,7 @@ def removekey(d, key):
     return r
 
 def lambda_handler(event, context):
-  logger.info("event: %s" % json.dumps(event))
+  logger.info("event: %s" % sanitize_log(json.dumps(event)))
   sf = Salesforce()
 
   sf_operation = str(event['Details']['Parameters']['sf_operation'])
@@ -84,7 +84,7 @@ def lambda_handler(event, context):
     logger.error(msg)
     raise Exception(msg)
   
-  logger.info("result: %s" % resp)
+  logger.info("result: %s" % sanitize_log(str(resp)))
   return resp
 
 # ****WARNING**** -- this function will be deprecated in future versions of the integration; please use search/searchOne.
@@ -174,7 +174,7 @@ def lookup_all(sf, sf_object, sf_fields, **kwargs):
 # ****WARNING**** -- this function will be deprecated in future versions of the integration; please use search/searchOne.
 def query(sf, query, **kwargs):
   for key, value in kwargs.items():
-    logger.info("Replacing [%s] with [%s] in [%s]" % (key, value, query))
+    logger.info("Replacing [%s] with [%s] in [%s]" % (sanitize_log(key), sanitize_log(value), sanitize_log(query)))
     query = query.replace(key, value)
 
   records = sf.query(query=query)
@@ -196,7 +196,7 @@ def query(sf, query, **kwargs):
 # ****WARNING**** -- this function will be deprecated in future versions of the integration; please use search/searchOne.
 def queryOne(sf, query, **kwargs):
   for key, value in kwargs.items():
-    logger.info("Replacing [%s] with [%s] in [%s]" % (key, value, query))
+    logger.info("Replacing [%s] with [%s] in [%s]" % (sanitize_log(key), sanitize_log(value), sanitize_log(query)))
     query = query.replace(key, value)
 
   records = sf.query(query=query)
@@ -274,7 +274,7 @@ def searchOne(sf, q, sf_fields, sf_object, where="", **kwargs):
 
 def searchSOSL(sf, query, **kwargs):
   for key, value in kwargs.items():
-    logger.info("Replacing [%s] with [%s] in [%s]" % (key, value, query))
+    logger.info("Replacing [%s] with [%s] in [%s]" % (sanitize_log(key), sanitize_log(value), sanitize_log(query)))
     query = query.replace(key, value)
 
   records = sf.search(query=query)
@@ -295,7 +295,7 @@ def searchSOSL(sf, query, **kwargs):
 
 def searchOneSOSL(sf, query, **kwargs):
   for key, value in kwargs.items():
-    logger.info("Replacing [%s] with [%s] in [%s]" % (key, value, query))
+    logger.info("Replacing [%s] with [%s] in [%s]" % (sanitize_log(key), sanitize_log(value), sanitize_log(query)))
     query = query.replace(key, value)
 
   records = sf.query(query=query)

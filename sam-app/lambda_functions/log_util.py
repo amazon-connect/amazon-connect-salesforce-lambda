@@ -15,3 +15,13 @@ logger.setLevel(logging.getLevelName(logging_level))
 
 # Ensure logger is configured properly
 logger.info(f"Logging level set to {logging_level}")
+
+import re
+
+_CONTROL_CHAR_RE = re.compile(r'[\x00-\x08\x0a-\x1f\x7f\x85\u2028\u2029]+')
+
+def sanitize_log(value):
+    """Replace control characters to prevent log injection (CWE-117)."""
+    if isinstance(value, str):
+        return _CONTROL_CHAR_RE.sub('[SANITIZED]', value)
+    return value

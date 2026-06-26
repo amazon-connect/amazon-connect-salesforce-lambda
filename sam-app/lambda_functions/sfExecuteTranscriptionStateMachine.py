@@ -30,20 +30,20 @@ import json
 import base64
 import uuid
 from sf_util import split_s3_bucket_key, invokeSfAPI
-from log_util import logger
+from log_util import logger, sanitize_log
 
 
 def process_record(record):
     #for record in records:
     decoded_payload = base64.b64decode(record).decode('utf-8')
     recordObj = json.loads(decoded_payload)
-    logger.info('DecodedPayload: {}'.format(recordObj))
+    logger.info('DecodedPayload: {}'.format(sanitize_log(str(recordObj))))
 
     # ignore all Kinesis events that don't contain a contact
     if 'ContactId' not in recordObj:
         logger.info('No contact in record; returning')
         return
-    
+
     #check if CTR already locked, and proceed if not locked
     if not checkLockCTR(recordObj['ContactId']):
         if lockCTR(recordObj['ContactId'], recordObj["Attributes"]):
@@ -74,78 +74,78 @@ def executeStateMachine(s3_object, contactId, languageCode):
           "settings" : {"ChannelIdentification" : True}
         }
         client = boto3.client('stepfunctions')
-        logger.info('Starting Transcribe State Machine: %s' % execution_input)
+        logger.info('Starting Transcribe State Machine: %s' % sanitize_log(str(execution_input)))
         response = client.start_execution(
             stateMachineArn=os.environ['TRANSCRIBE_STATE_MACHINE_ARN'],
             input=json.dumps(execution_input)
         )
-        logger.info('Transcribe State Machine Response: {}'.format(response))
+        logger.info('Transcribe State Machine Response: {}'.format(sanitize_log(str(response))))
     except Exception as e:
-        logger.error('Error: {}'.format(e))
-        logger.error('Current data: {}'.format(execution_input))
+        logger.error('Error: {}'.format(sanitize_log(str(e))))
+        logger.error('Current data: {}'.format(sanitize_log(str(execution_input))))
 
 
 def lockCTR(ContactId, Attributes):
     try:
         s3 = boto3.resource('s3')
         oMetadata = {}
-        
+
         if 'postcallTranscribeComprehendAnalysis' in Attributes:
             oMetadata['postcallTranscribeComprehendAnalysis'] = Attributes['postcallTranscribeComprehendAnalysis']
-        logger.info('Locking CTR: {}'.format(ContactId))
+        logger.info('Locking CTR: {}'.format(sanitize_log(ContactId)))
         s3.Object(os.environ["TRANSCRIPTS_DESTINATION"], 'locks/' + ContactId + '.lock').put(Body='IN_PROGRESS', Metadata=oMetadata)
-        logger.info('CTR Locked: {}'.format(ContactId))
+        logger.info('CTR Locked: {}'.format(sanitize_log(ContactId)))
         return True
     except Exception as e:
-        logger.error('Error lock: {}'.format(e))
-        logger.error('Current data: {}'.format(ContactId))
+        logger.error('Error lock: {}'.format(sanitize_log(str(e))))
+        logger.error('Current data: {}'.format(sanitize_log(ContactId)))
         raise e
 
 def checkLockCTR(ContactId):
     try:
         s3 = boto3.resource('s3')
-        logger.info('Checking if CTR locked: {}'.format(ContactId))
+        logger.info('Checking if CTR locked: {}'.format(sanitize_log(ContactId)))
         s3Object = s3.Object(os.environ["TRANSCRIPTS_DESTINATION"], 'locks/' + ContactId + '.lock').load()
     except botocore.exceptions.ClientError as e:
         if int(e.response['Error']['Code']=='404'):
-            logger.info('CTR not locked: {}'.format(ContactId))
+            logger.info('CTR not locked: {}'.format(sanitize_log(ContactId)))
             return False
         else:
-            logger.error('Error checkLock: {}'.format(e))
-            logger.error('Current data: {}'.format(ContactId))
+            logger.error('Error checkLock: {}'.format(sanitize_log(str(e))))
+            logger.error('Current data: {}'.format(sanitize_log(ContactId)))
             return False
-    logger.warning('CTR already locked: {}'.format(ContactId))
+    logger.warning('CTR already locked: {}'.format(sanitize_log(ContactId)))
     return True
 
 def updateLockMetadata(ContactId, nMetadata):
     try:
         s3 = boto3.resource('s3')
 
-        logger.info('Load existing metadata from lock object: %s' % ContactId)
+        logger.info('Load existing metadata from lock object: %s' % sanitize_log(ContactId))
         s3Object = s3.Object(os.environ["TRANSCRIPTS_DESTINATION"], 'locks/' + ContactId + '.lock')
 
         oMetadata = s3Object.metadata
-        logger.info('Existing lock object metadata: %s' % oMetadata)
+        logger.info('Existing lock object metadata: %s' % sanitize_log(str(oMetadata)))
 
         fMetadata = {**nMetadata, **oMetadata}
-        logger.info('Updating lock object metadata: %s' % fMetadata)
+        logger.info('Updating lock object metadata: %s' % sanitize_log(str(fMetadata)))
 
         s3.Object(os.environ["TRANSCRIPTS_DESTINATION"], 'locks/' + ContactId + '.lock').put(Body='IN_PROGRESS', Metadata=fMetadata)
-        logger.info('Lock object metadata updated: %s' % ContactId)
+        logger.info('Lock object metadata updated: %s' % sanitize_log(ContactId))
         return True
     except Exception as e:
-        logger.error('Error updateLockMetadata: {}'.format(e))
-        logger.error('Current data: {}'.format(ContactId))
+        logger.error('Error updateLockMetadata: {}'.format(sanitize_log(str(e))))
+        logger.error('Current data: {}'.format(sanitize_log(ContactId)))
         raise e
-    
+
 
 def lambda_handler(event, context):
     try:
-        logger.info('Event: {}'.format(event))
+        logger.info('Event: {}'.format(sanitize_log(str(event))))
 
         process_record(event['record'])
         return "Done"
-        
+
     except Exception as e:
         raise e
 
@@ -168,8 +168,8 @@ def createACContactChannelAnalyticsSalesforceObject(contactId, customerEndpoint,
 
 
     ACContactChannelAnalyticsId = invokeSfAPI(sfRequest)['Id']
-    logger.info('SF Object Created, with ID: %s' % ACContactChannelAnalyticsId)
-    
+    logger.info('SF Object Created, with ID: %s' % sanitize_log(ACContactChannelAnalyticsId))
+
     #add ACContactChannelAnalyticsId to lock file metadata
     oMetadata = {}
     oMetadata['ACContactChannelAnalyticsId'] = ACContactChannelAnalyticsId
