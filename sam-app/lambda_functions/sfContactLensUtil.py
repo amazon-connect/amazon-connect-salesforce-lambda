@@ -22,8 +22,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import os, json, boto3
-from log_util import logger
+import datetime
+import os, json, boto3, re
+from log_util import logger, sanitize_log
 
 def getDataSource():
     return 'Contact_Lens'
@@ -59,7 +60,7 @@ def processContactLensTranscript(iItems, participants):
     return {'customerTranscripts' : customerTranscripts, 'agentTranscripts' : agentTranscripts, 'finalTranscripts': finalTranscripts}
 
 
-def processContactLensConversationCharacteristics(contactLensObj, connectBucket, transcripts):
+def processContactLensConversationCharacteristics(contactLensObj, connectBucket, transcripts, key):
     resultSet = {}
 
     # Overall Sentiment
@@ -108,7 +109,7 @@ def processContactLensConversationCharacteristics(contactLensObj, connectBucket,
     contactId = contactLensObj['CustomerMetadata']['ContactId']
     if ('postcallRedactedRecordingImportEnabled' in contactAttributes and contactAttributes['postcallRedactedRecordingImportEnabled'] == 'true'):
         logger.info('Redacted recording import is enabled')
-        redactedRecordingLocation = getRedactedRecordingLocation(contactId, connectBucket)
+        redactedRecordingLocation = getRedactedRecordingLocation(contactId, connectBucket, key)
         resultSet['recordingPath'] = redactedRecordingLocation
     else:
         resultSet['recordingPath'] = None
@@ -126,23 +127,64 @@ def getParticipantRole(participantId, participants):
     for participant in participants:
         if participant['ParticipantId'] == participantId:
             return participant['ParticipantRole']
-    logger.warning('Participant Role not found for participant id: %s' % participantId)
+    logger.warning('Participant Role not found for participant id: %s' % sanitize_log(participantId))
     return ''
 
-def getRedactedRecordingLocation(contactId, connectBucket):
+def getRedactedRecordingLocation(contactId, connectBucket, key):
+    logger.info('Retrieving Redacted Recording S3 Location for contact id: %s', contactId)
+    TRANSCRIPT_KEY_REGEX = re.compile(
+        r"""^
+        Analysis/
+        (?P<channel>Voice|Chat)
+        (?:/Redacted)?/
+        (?P<yyyy>\d{4})/(?P<mm>\d{2})/(?P<dd>\d{2})/
+        (?P<contactId>[^/_]+)_analysis(?:_redacted)?_
+        (?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)
+        \.json$
+        """,
+        re.VERBOSE,
+    )
+    m = TRANSCRIPT_KEY_REGEX.match(key)
+    if not m:
+        return legacyGetRedactedRecordingLocation(contactId, connectBucket, key)
+
+    if m.group("channel") == "Chat":
+        logger.warn('Redacted Recording Not Found!')
+        return None
+
+    yyyy, mm, dd = m.group("yyyy"), m.group("mm"), m.group("dd")
+    contact_id = m.group("contactId")
+    ts = m.group("ts")
+
+    redactedRecordingLocation = (
+        f"{connectBucket}/Analysis/Voice/Redacted/{yyyy}/{mm}/{dd}/"
+        f"{contact_id}_call_recording_redacted_{ts}.wav"
+    )
+
+    return redactedRecordingLocation
+
+def legacyGetRedactedRecordingLocation(contactId, connectBucket, key):
     logger.info('Retrieving Redacted Recording S3 Location, contact ID is: %s', contactId)
     redactedRecordingKey = contactId + '_call_recording_redacted_'
 
     # Using paginator because S3 only returns up to 1000 objects from list_objects_v2() method
     client = boto3.client('s3')
     paginator = client.get_paginator('list_objects_v2')
-    pages = paginator.paginate(Bucket=connectBucket, Prefix='Analysis/Voice/Redacted')
+    prefix = 'Analysis/Voice/Redacted'
+    pattern = r"\/Voice(.*?)" + contactId
+    matches = re.search(pattern, key);
+    if matches:
+        prefix = 'Analysis/Voice/Redacted' + matches.group(1)
+        logger.info('Prefix to paginate is: %s', prefix)
+
+    pages = paginator.paginate(Bucket=connectBucket, Prefix=prefix)
     for page in pages:
-      for obj in page['Contents']:
-        if redactedRecordingKey in obj['Key'] and obj['Key'].endswith('.wav'):
-          redactedRecordingLocation = connectBucket + '/' + obj['Key']
-          return redactedRecordingLocation
-    logger.warn('Redacted Recording Not Found!')
+      if 'Contents' in page:
+        for obj in page['Contents']:
+            if redactedRecordingKey in obj['Key'] and obj['Key'].endswith('.wav'):
+                redactedRecordingLocation = connectBucket + '/' + obj['Key']
+                return redactedRecordingLocation 
+    logger.warning('Redacted Recording Not Found!')
     return ''
     
 def getContactAttributes(contactLensObj):
@@ -154,4 +196,4 @@ def getContactAttributes(contactLensObj):
         )
         return connect_response["Attributes"]
     except Exception as e:
-        logger.error('Error when retrieving contact attribute: {}'.format(e))
+        logger.error('Error when retrieving contact attribute: {}'.format(sanitize_log(str(e))))

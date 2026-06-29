@@ -30,10 +30,10 @@ import json
 import datetime
 import uuid
 from time import sleep
-from log_util import logger
+from log_util import logger, sanitize_log
 
 def lambda_handler(event, context):
-    logger.info("event: %s" % json.dumps(event))
+    logger.info("event: %s" % sanitize_log(json.dumps(event)))
     method = event["method"]
     params = event["params"]
 
@@ -53,12 +53,8 @@ def lambda_handler(event, context):
             result = connect_associate_approved_origin(**params)
         elif method == "retrieve_lambda_parameters":
             result = retrieve_lambda_parameters(**params)
-        elif method == "setup_audio_recording":
-            result = setup_audio_recording(**params)
         elif method == "get_aws_region":
             result = get_aws_region()
-        elif method == "generate_audio_recording_url":
-            result = generate_audio_recording_url(params)
         else:
             raise Exception("Invalid method: " + method)
         return { 
@@ -66,7 +62,7 @@ def lambda_handler(event, context):
             "body": json.dumps(result)
         }
     except Exception as e:
-        logger.error("error: %s" % e)
+        logger.error("error: %s" % sanitize_log(str(e)))
         return {
             "success": False,
             "body": str(e)
@@ -88,7 +84,7 @@ def connect_create_instance(ConnectInstanceAlias, IdentityManagementType, Inboun
         InboundCallsEnabled=InboundCallsEnabled,
         OutboundCallsEnabled=OutboundCallsEnabled
     )
-    logger.info("result: %s" % json.dumps(result))
+    logger.info("result: %s" % sanitize_log(json.dumps(result)))
     return result
 
 def kinesis_create_stream(StreamName, ShardCount):
@@ -104,7 +100,7 @@ def kinesis_create_stream(StreamName, ShardCount):
                 StreamName=StreamName,
                 ShardCount=ShardCount
             )
-            logger.info("result: %s" % json.dumps(result))
+            logger.info("result: %s" % sanitize_log(json.dumps(result)))
             return result
         else:
             raise e
@@ -124,13 +120,13 @@ def s3_create_bucket(Bucket):
                 "LocationConstraint": aws_region
             }
         )
-    logger.info("result: %s" % json.dumps(result))
+    logger.info("result: %s" % sanitize_log(json.dumps(result)))
     return result
 
 def kinesis_describe_stream(StreamName):
     result = boto3.client("kinesis").describe_stream(StreamName=StreamName)
     formatted_result = format_datetime_values(result)
-    logger.info("result: %s" % json.dumps(formatted_result))
+    logger.info("result: %s" % sanitize_log(json.dumps(formatted_result)))
     return formatted_result
 
 def connect_associate_instance_storage_config(ConnectInstanceId, ResourceType, StorageType, BucketName="", BucketPrefix="", StreamArn="", s3KMSKeyARN=""):
@@ -181,14 +177,14 @@ def connect_associate_instance_storage_config(ConnectInstanceId, ResourceType, S
             else:
                 raise Exception(str(errors))
     formatted_result = format_datetime_values(result)
-    logger.info("result: %s" % json.dumps(formatted_result))
+    logger.info("result: %s" % sanitize_log(json.dumps(formatted_result)))
     return formatted_result
 
 def connect_associate_approved_origin(ConnectInstanceAlias, Origin):
     connect = boto3.client("connect")
     instanceId = getConnectInstanceIdFromInstanceAlias(ConnectInstanceAlias, connect)
     result = connect.associate_approved_origin(InstanceId=instanceId, Origin=Origin)
-    logger.info("result: %s" % json.dumps(result))
+    logger.info("result: %s" % sanitize_log(json.dumps(result)))
     return result
 
 def retrieve_lambda_parameters(ConnectInstanceAlias):
@@ -223,122 +219,11 @@ def retrieve_lambda_parameters(ConnectInstanceAlias):
         "ctrKinesisARN": ctrKinesisARN,
         "cloudFormationStackId": cloudformation_stack_id
     }
-    logger.info("result: %s" % json.dumps(result))
+    logger.info("result: %s" % sanitize_log(json.dumps(result)))
     return result
-
-def setup_audio_recording(CloudfrontPublicKey):
-    s3_client = boto3.client("s3")
-    bucket_name = os.environ["RECORDING_BUCKET_NAME"]
-    bucket_cors_rules = []
-    try:
-        bucket_cors_rules = s3_client.get_bucket_cors(Bucket=bucket_name)["CORSRules"]
-    except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] != 'NoSuchCORSConfiguration':
-            raise e
-    
-    sf_host = os.environ["SALESFORCE_HOST"]
-    lightning_url = sf_host[:sf_host.index(".my.salesforce.com")] + ".lightning.force.com"
-    visualforce_url = sf_host[:sf_host.index(".my.salesforce.com")]
-    if os.environ["NAMESPACE"]:
-        visualforce_url = visualforce_url + "--" + os.environ["NAMESPACE"] + ".visualforce.com"
-    else:
-        visualforce_url = visualforce_url + "--c.visualforce.com"
-
-    for rule in bucket_cors_rules:
-        if lightning_url in rule["AllowedOrigins"]:
-            bucket_cors_rules.remove(rule)
-
-    bucket_cors_rules.append({
-        "AllowedHeaders": ["Access-Control-Allow-Origin"],
-        "AllowedMethods": ["GET"],
-        "AllowedOrigins": [lightning_url, visualforce_url]
-    })
-    s3_client.put_bucket_cors(
-        Bucket=bucket_name,
-        CORSConfiguration={
-            "CORSRules": bucket_cors_rules
-        }
-    )
-
-    cloudfront_client = boto3.client("cloudfront")
-    create_public_key_response = cloudfront_client.create_public_key(
-        PublicKeyConfig={
-            'CallerReference': str(uuid.uuid4()),
-            'Name': 'AmazonConnectSalesforceCTIAdapterContactLens',
-            'EncodedKey': CloudfrontPublicKey
-        }
-    )
-    create_key_group_response = cloudfront_client.create_key_group(
-        KeyGroupConfig={
-            'Name': 'AmazonConnectSalesforceCTIAdapterContactLens',
-            'Items': [
-                create_public_key_response["PublicKey"]["Id"]
-            ]
-        }
-    )
-
-    # edge lambdas must be created in us-east-1
-    lambda_client = boto3.client("lambda", region_name='us-east-1')
-    cloudformation_stack_name = os.environ["CLOUDFORMATION_STACK_NAME"]
-    MAX_LAMBDA_NAME_LENGTH = 64
-    function_name_end = '-sfSig4RequestToS3'
-    function_name_start = cloudformation_stack_name[:MAX_LAMBDA_NAME_LENGTH - len(function_name_end)]
-    function_name =  function_name_start + function_name_end
-    create_function_response = lambda_client.create_function(
-        FunctionName=function_name,
-        Runtime='nodejs12.x',
-        Role=os.environ["SIG4_LAMBDA_ROLE_ARN"],
-        Handler='sfSig4RequestToS3.handler',
-        Code={
-            'ZipFile': open('./sfSig4RequestToS3.zip', 'rb').read()
-        }
-    )
-    publish_version_response = lambda_client.publish_version(
-        FunctionName=function_name
-    )
-
-    get_distribution_config_response = cloudfront_client.get_distribution_config(
-        Id=os.environ["CLOUDFRONT_DISTRIBUTION_ID"]
-    )
-
-    distribution_config = get_distribution_config_response["DistributionConfig"]
-    distribution_config["DefaultCacheBehavior"]["LambdaFunctionAssociations"] = {
-        'Quantity': 1,
-        'Items': [
-            {
-                'LambdaFunctionARN': publish_version_response["FunctionArn"],
-                'EventType': 'origin-request',
-                'IncludeBody': False
-            },
-        ]
-    }
-    distribution_config["DefaultCacheBehavior"]["TrustedSigners"] = {
-        'Enabled': False,
-        'Quantity': 0
-    }
-    distribution_config["DefaultCacheBehavior"]["TrustedKeyGroups"] = {
-        'Enabled': True,
-        'Quantity': 1,
-        'Items': [ create_key_group_response["KeyGroup"]["Id"] ]
-    }
-
-    return format_datetime_values(cloudfront_client.update_distribution(
-        DistributionConfig=distribution_config, 
-        Id=os.environ["CLOUDFRONT_DISTRIBUTION_ID"], 
-        IfMatch=get_distribution_config_response["ETag"]
-    ))
 
 def get_aws_region():
     return os.environ["AWS_REGION"]
-
-def generate_audio_recording_url(params):
-    lambda_client = boto3.client('lambda')
-    resp = lambda_client.invoke(FunctionName=os.environ["GENERATE_AUDIO_RECORDING_LAMBDA"], InvocationType='RequestResponse', Payload=json.dumps(params))
-    logger.info(resp)
-    lambda_result = resp["Payload"].read().decode("utf-8")
-    if resp["StatusCode"] < 200 or resp["StatusCode"] >= 300:
-        raise Exception("ERROR: GENERATE_AUDIO_RECORDING_LAMBDA failed with " + lambda_result)
-    return lambda_result
 
 def getConnectInstanceIdFromInstanceAlias(ConnectInstanceAlias, connect_client):
     list_instances_result = connect_client.list_instances(MaxResults=20)

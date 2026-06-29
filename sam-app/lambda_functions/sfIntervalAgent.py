@@ -27,8 +27,8 @@ import json, csv, os, re
 import boto3
 import urllib.parse
 from salesforce import Salesforce
-from sf_util import get_arg, parse_date, split_bucket_key
-from log_util import logger
+from sf_util import get_arg, parse_date, split_bucket_key, get_field_mapping, get_filtered_fields
+from log_util import logger, sanitize_log
 
 s3 = boto3.client("s3")
 pnamespace = os.environ['SF_ADAPTER_NAMESPACE']
@@ -41,32 +41,36 @@ else:
 def lambda_handler(event, context):
 
   logger.info("Logging Start sfIntervalAgent")
-  logger.info("sfIntervalAgent event: %s" % json.dumps(event))
+  logger.info("sfIntervalAgent event: %s" % sanitize_log(json.dumps(event)))
 
   event_record = event['Records'][0]
   bucket = event_record['s3']['bucket']['name']
-  logger.info("bucket: %s" % bucket)
+  logger.info("bucket: %s" % sanitize_log(bucket))
   key = urllib.parse.unquote(event_record['s3']['object']['key'])
-  logger.info("key: %s" % key)
+  logger.info("key: %s" % sanitize_log(key))
   data = s3.get_object(Bucket=bucket, Key=key)["Body"].read().decode()
-  logger.info("sfIntervalAgent data: %s" % data)
+  logger.info("sfIntervalAgent data: %s" % sanitize_log(data))
   sf = Salesforce()
 
+  # Get field mapping to handle case sensitivity between Connect and Salesforce
+  field_mapping = get_field_mapping(sf, pnamespace + 'AC_AgentPerformance__c')
 
   for record in csv.DictReader(data.split("\n")):
-    logger.info("sfIntervalAgent record: %s" % record)
+    logger.info("sfIntervalAgent record: %s" % sanitize_log(str(record)))
     agent_record = prepare_agent_record(record, event_record['eventTime'])
     ac_record_id = "%s%s" % (agent_record[pnamespace + 'AC_Object_Name__c'], agent_record[pnamespace + 'StartInterval__c'])
 
-    # Only add the new region field if the field is available on the Salesforce org
-    if sf.isFieldInSObject(pnamespace + 'AC_AgentPerformance__c', pnamespace + 'Region__c'):
+    # Only add the region field if it exists in Salesforce
+    if (pnamespace + 'Region__c').lower() in field_mapping:
         session = boto3.session.Session()
         agent_record[pnamespace + 'Region__c'] = session.region_name
         ac_record_id = "%s%s" % (ac_record_id, session.region_name)
 
-    sf.update_by_external(pnamespace + "AC_AgentPerformance__c", pnamespace + 'AC_Record_Id__c',ac_record_id, agent_record)
+    # Filter fields and ensure correct field name casing
+    filtered_record = get_filtered_fields(field_mapping, agent_record)
+    sf.update_by_external(pnamespace + "AC_AgentPerformance__c", pnamespace + 'AC_Record_Id__c',ac_record_id, filtered_record)
 
-  logger.info("done")
+  logger.info("Successfully processed historical Agent metrics")
 
 def prepare_agent_record(record_raw, current_date):
   record = {label_parser(k):value_parser(v) for k, v in record_raw.items()}
@@ -77,11 +81,28 @@ def prepare_agent_record(record_raw, current_date):
   return record
 
 def label_parser(key):
-  if key.lower() == 'average agent interaction and customer hold time':#To Long
-    return pnamespace + 'Avg_agent_interaction_and_cust_hold_time__c'
+
+  # Remove parentheses from field names
+  key = re.sub(r'[()]+', '', key)
+
+  # Remove BOM character if present
+  key = key.replace('\ufeff', '')
 
   if key.lower() == "agent":
     return pnamespace + "AC_Object_Name__c"
+  
+  # Mapping long field names to shorter Salesforce compliant field names
+  if key.lower() == 'average agent interaction and customer hold time':
+    return pnamespace + 'Avg_agent_interaction_and_cust_hold_time__c'
+  
+  if key.lower() == 'agent non-response without customer abandons':
+    return pnamespace + 'Agent_non_response_without_cust_abandons__c'
+  
+  if key.lower() == 'contacts handled on connected to agent timestamp':
+    return pnamespace + 'Contacts_handled_conn_to_agent_timestamp__c'
+  
+  if key.lower() == 'non-productive time':
+    return pnamespace + 'Nonproductive_time__c'
   
   key = re.sub(r'[-\s]+', '_', key)
 

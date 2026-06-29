@@ -27,8 +27,9 @@ from datetime import datetime, timedelta
 import base64
 import json
 import boto3
+from botocore.exceptions import ClientError
 import os
-from log_util import logger
+from log_util import logger, sanitize_log
 
 def parse_date(value, date=datetime.now()):
     if type(value) is not str:
@@ -111,10 +112,16 @@ def find_bucket_key(s3_path):
 def getS3FileMetadata(Bucket, ContactId):
     oMetadata = {}
     s3 = boto3.client('s3')
-    response = s3.head_object(Bucket=Bucket, Key='locks/' + ContactId + '.lock')
-    logger.info('GetS3FileMetadata Response: %s ' % response)
-    if 'Metadata' in response:
-        oMetadata = response['Metadata']
+
+    try:
+        response = s3.head_object(Bucket=Bucket, Key='locks/' + ContactId + '.lock')
+        logger.info('GetS3FileMetadata Response: %s ' % sanitize_log(str(response)))
+        if 'Metadata' in response:
+            oMetadata = response['Metadata']
+    except ClientError as e:
+        logger.warning('ClientError on response: %s ' % sanitize_log(str(e)))
+        return oMetadata
+
     return oMetadata
 
 def getS3FileJSONObject(bucket, key):
@@ -143,7 +150,7 @@ def invokeSfAPI(sfRequest):
     if(sfLambdaResponse['StatusCode']==200):
         responsePayload = sfLambdaResponse['Payload'].read()
         responsePayload = responsePayload.decode('utf8')
-        logger.info('SF API Lambda Response %s' %responsePayload)
+        logger.info('SF API Lambda Response %s' % sanitize_log(responsePayload))
         responsePayload = json.loads(responsePayload)
         if 'errorMessage' in responsePayload:
             raise ValueError('Error SFDC Lambda: ' + json.dumps(responsePayload))
@@ -169,3 +176,27 @@ def text_replace_string(string, word_map):
         string = string[:startIndex] + word_map[key] + string[endIndex+2:]
     return string
 
+# Get field mapping and handle case sensitivity between Connect and Salesforce
+def get_field_mapping(sf, sobject):
+  try:
+    describe_result = sf.describe_sObject(sobject)
+    # Create mapping of lowercase field names to actual field names
+    field_mapping = {field['name'].lower(): field['name'] for field in describe_result['fields']}
+    logger.info(f"Retrieved {len(field_mapping)} fields for {sobject}")
+    return field_mapping
+  except Exception as e:
+    logger.error(f"Error getting field mapping for {sobject}: {e}")
+    return {}
+
+# Filter fields and ensure correct field name casing
+def get_filtered_fields(field_mapping, record):
+  filtered_record = {}
+  for field_name, field_value in record.items():
+    field_name_lower = field_name.lower()
+    if field_name_lower in field_mapping:
+      # Use the correctly cased field name from Salesforce
+      correct_field_name = field_mapping[field_name_lower]
+      filtered_record[correct_field_name] = field_value
+    else:
+      logger.info(f"Skipping unsupported field: {field_name}")
+  return filtered_record

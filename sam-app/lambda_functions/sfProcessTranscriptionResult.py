@@ -28,20 +28,20 @@ import boto3
 import botocore
 import os
 import base64
-from log_util import logger
+from log_util import logger, sanitize_log
 from sf_util import getS3FileMetadata, getS3FileJSONObject, getBase64String, attachFileSaleforceObject, invokeSfAPI
 from sfComprehendUtil import StartComprehendAnalysis, GetFormattedSentiment, GetFormattedKeywords, GetFormattedDominantLanguage, GetFormattedNamedEntities, GetFormattedSyntax, processTranscript
 
 def lambda_handler(event, context):
     try:
-        logger.info('Received event: %s' % event)
+        logger.info('Received event: %s' % sanitize_log(str(event)))
         transcriptFileUri = event["TranscriptionJob"]["Transcript"]["TranscriptFileUri"]
         languageCode = event["TranscriptionJob"]["LanguageCode"].split('-')[0]
         bucket = transcriptFileUri.split('/')[3]
         key = transcriptFileUri.split('/')[4]
         contactId = event["TranscriptionJob"]["TranscriptionJobName"].split('_')[0]
 
-        logger.info('Getting lock file metadata: %s ' % contactId)
+        logger.info('Getting lock file metadata: %s ' % sanitize_log(contactId))
         oMetadata = getS3FileMetadata(bucket, key.split('_')[0])
 
         postcallTranscribeComprehendAnalysis = []
@@ -58,10 +58,10 @@ def lambda_handler(event, context):
 
         logger.info('Processing Customer transcript')
         customerTranscripts = processTranscript(transcriptObj['results']['channel_labels']['channels'][0]['items'])
-        logger.info('Customer transcript: %s' % customerTranscripts)
+        logger.info('Customer transcript: %s' % sanitize_log(customerTranscripts))
         logger.info('Processing Agent transcript')
         agentTranscripts = processTranscript(transcriptObj['results']['channel_labels']['channels'][1]['items'])
-        logger.info('Agent transcript: %s' % agentTranscripts)
+        logger.info('Agent transcript: %s' % sanitize_log(agentTranscripts))
 
         comprehendResults = {}
         #Test Comprehend
@@ -99,7 +99,7 @@ def createSalesforceObject(contactId, customerTranscripts, agentTranscripts, com
 
     sfRequest = {'Details' : {'Parameters':{}}}
     if mACContactChannelAnalyticsId is not None:
-        logger.info('SF Object Already Created, with ID: %s' % mACContactChannelAnalyticsId)
+        logger.info('SF Object Already Created, with ID: %s' % sanitize_log(mACContactChannelAnalyticsId))
         sfRequest['Details']['Parameters']['sf_operation'] = 'update'
         sfRequest['Details']['Parameters']['sf_id'] = mACContactChannelAnalyticsId
     else:
@@ -114,12 +114,12 @@ def createSalesforceObject(contactId, customerTranscripts, agentTranscripts, com
 
     ACContactChannelAnalyticsId = mACContactChannelAnalyticsId
     if mACContactChannelAnalyticsId is not None:
-        logger.info("Updating the SF Object: %s" % sfRequest)
+        logger.info("Updating the SF Object: %s" % sanitize_log(str(sfRequest)))
         invokeSfAPI(sfRequest)
     else:
-        logger.info('SF Object does not exist, creating a new one: %s' % sfRequest)
+        logger.info('SF Object does not exist, creating a new one: %s' % sanitize_log(str(sfRequest)))
         ACContactChannelAnalyticsId = invokeSfAPI(sfRequest)['Id']
-        logger.info('SF Object Created, with ID: %s' % ACContactChannelAnalyticsId)
+        logger.info('SF Object Created, with ID: %s' % sanitize_log(ACContactChannelAnalyticsId))
 
     if len(customerTranscripts) > 0:
         logger.info('Attaching SF Transcript - Customer Side')
@@ -139,12 +139,12 @@ def createSalesforceObject(contactId, customerTranscripts, agentTranscripts, com
 def updateLock(Bucket, ContactId, oMetadata):
     try:
         s3r = boto3.resource('s3')
-        logger.info('Updating lock file: %s' % ContactId)
+        logger.info('Updating lock file: %s' % sanitize_log(ContactId))
         s3r.Object(Bucket, 'locks/' + ContactId + '.lock').put(Body='COMPLETED', Metadata=oMetadata)
-        logger.info('Lock file updated: %s' % ContactId)
+        logger.info('Lock file updated: %s' % sanitize_log(ContactId))
         return True
     except Exception as e:
-        logger.error('Error lock: {}'.format(e))
-        logger.error('Current data: {}'.format(ContactId))
+        logger.error('Error lock: {}'.format(sanitize_log(str(e))))
+        logger.error('Current data: {}'.format(sanitize_log(ContactId)))
         raise e
     

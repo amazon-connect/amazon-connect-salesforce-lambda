@@ -27,7 +27,7 @@ import json, csv, urllib.parse, os
 import boto3
 import botocore
 import base64
-from log_util import logger
+from log_util import logger, sanitize_log
 from sf_util import getS3FileMetadata, getS3FileJSONObject, getBase64String, attachFileSaleforceObject, invokeSfAPI, split_s3_bucket_key
 from sfContactLensUtil import processContactLensTranscript, processContactLensConversationCharacteristics, getDataSource, getContactAttributes
 
@@ -38,14 +38,14 @@ def lambda_handler(event, context):
         return {"Done": False}
 
     try:
-        logger.info('Received event: %s' % json.dumps(event))
+        logger.info('Received event: %s' % sanitize_log(json.dumps(event)))
 
         event_record = event['Records'][0]
         bucket = event_record['s3']['bucket']['name']
-        logger.info("ContactLens file bucket: %s" % bucket)
+        logger.info("ContactLens file bucket: %s" % sanitize_log(bucket))
 
         key = urllib.parse.unquote(event_record['s3']['object']['key'])
-        logger.info("ContactLens file key: %s" % key)
+        logger.info("ContactLens file key: %s" % sanitize_log(key))
 
         logger.info('Retrieving ContactLens file: %s', key)
         contactLensObj = getS3FileJSONObject(bucket, key)
@@ -64,7 +64,7 @@ def lambda_handler(event, context):
             logger.warning('Wrong Contact Lens data for Amazon Connect instance %s', os.environ["AMAZON_CONNECT_INSTANCE_ID"])
             return {"Done": False}
 
-        logger.info('Getting lock file metadata: %s ' % contactId)
+        logger.info('Getting lock file metadata: %s ' % sanitize_log(contactId))
         mACContactChannelAnalyticsId = None
         oMetadata = None
         transcribeBucketExists = os.environ['TRANSCRIPTS_DESTINATION'] != ''
@@ -83,7 +83,7 @@ def lambda_handler(event, context):
         contactLensTranscripts = ContactLensTranscripts['finalTranscripts']
         
         logger.info('Processing Conversation Characteristics')
-        contactLensConversationCharacteristics = processContactLensConversationCharacteristics(contactLensObj, bucket, contactLensTranscripts)
+        contactLensConversationCharacteristics = processContactLensConversationCharacteristics(contactLensObj, bucket, contactLensTranscripts, key)
 
         createSalesforceObject(contactId, contactLensTranscripts, contactLensConversationCharacteristics, mACContactChannelAnalyticsId)
 
@@ -107,7 +107,7 @@ def createSalesforceObject(contactId, contactLensTranscripts, contactLensConvers
 
     sfRequest = {'Details' : {'Parameters':{}}}
     if mACContactChannelAnalyticsId is not None:
-        logger.info('SF Object Already Created, with ID: %s' % mACContactChannelAnalyticsId)
+        logger.info('SF Object Already Created, with ID: %s' % sanitize_log(mACContactChannelAnalyticsId))
         sfRequest['Details']['Parameters']['sf_operation'] = 'update'
         sfRequest['Details']['Parameters']['sf_id'] = mACContactChannelAnalyticsId
     else:
@@ -152,12 +152,12 @@ def createSalesforceObject(contactId, contactLensTranscripts, contactLensConvers
 
     ACContactChannelAnalyticsId = mACContactChannelAnalyticsId
     if mACContactChannelAnalyticsId is not None:
-        logger.info("Updating the SF Object: %s" % sfRequest)
+        logger.info("Updating the SF Object: %s" % sanitize_log(str(sfRequest)))
         invokeSfAPI(sfRequest)
     else:
-        logger.info('SF Object does not exist, creating a new one: %s' % sfRequest)
+        logger.info('SF Object does not exist, creating a new one: %s' % sanitize_log(str(sfRequest)))
         ACContactChannelAnalyticsId = invokeSfAPI(sfRequest)['Id']
-        logger.info('SF Object Created, with ID: %s' % ACContactChannelAnalyticsId)
+        logger.info('SF Object Created, with ID: %s' % sanitize_log(ACContactChannelAnalyticsId))
 
     if len(contactLensTranscripts) > 0:
         logger.info('Attaching SF Transcript - Contact Lens')
@@ -168,13 +168,13 @@ def createSalesforceObject(contactId, contactLensTranscripts, contactLensConvers
 def updateLock(Bucket, ContactId, oMetadata):
     try:
         s3r = boto3.resource('s3')
-        logger.info('Updating lock file: %s' % ContactId)
+        logger.info('Updating lock file: %s' % sanitize_log(ContactId))
         s3r.Object(Bucket, 'locks/' + ContactId + '.lock').put(Body='COMPLETED', Metadata=oMetadata)
-        logger.info('Lock file updated: %s' % ContactId)
+        logger.info('Lock file updated: %s' % sanitize_log(ContactId))
         return True
     except Exception as e:
-        logger.error('Error lock: {}'.format(e))
-        logger.error('Current data: {}'.format(ContactId))
+        logger.error('Error lock: {}'.format(sanitize_log(str(e))))
+        logger.error('Current data: {}'.format(sanitize_log(ContactId)))
         raise e
 
 def isValidContactLensData(contactLensObj):

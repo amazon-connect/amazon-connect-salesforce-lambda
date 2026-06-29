@@ -23,7 +23,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from log_util import logger
+from log_util import logger, sanitize_log
 import boto3
 import json
 
@@ -36,7 +36,7 @@ def StartComprehendAnalysis(transcripts, compAnalysis, languageCode, segments):
         logger.info("Analyzing Entire Transcript Detail...")
         cResults = analyzeContactDetail(transcripts, compAnalysis, languageCode)
 
-    logger.info("Comprehend Analysis: {}".format(cResults))
+    logger.info("Comprehend Analysis: {}".format(sanitize_log(str(cResults))))
     return cResults
 
 def analyzeContactSegments(transcripts, compAnalysis, languageCode):
@@ -81,27 +81,27 @@ def analyzeContactDetail(transcripts, compAnalysis, languageCode):
     return rComprehend
 
 def detectSentiment(cObject, sentimentText, languageCode):
-  logger.info('Detecting Sentiment for: %s' % sentimentText)
+  logger.info('Detecting Sentiment for: %s' % sanitize_log(sentimentText))
   rSNT = cObject.detect_sentiment(Text=sentimentText, LanguageCode=languageCode)
   return rSNT
 
 def detectKeyWords(cObject, keyWordText, languageCode):
-  logger.info('Detecting Key Phrases for: %s' % keyWordText)
+  logger.info('Detecting Key Phrases for: %s' % sanitize_log(keyWordText))
   rKW = cObject.detect_key_phrases(Text=keyWordText, LanguageCode=languageCode)
   return rKW
 
 def detectDominantLanguage(cObject, languageText):
-  logger.info('Detecting Dominant Language for: %s' % languageText)
+  logger.info('Detecting Dominant Language for: %s' % sanitize_log(languageText))
   rDL = cObject.detect_dominant_language(Text = languageText)
   return rDL
 
 def detectNamedEntities(cObject, entityText, languageCode):
-  logger.info('Detecting Named Entities for: %s' % entityText)
+  logger.info('Detecting Named Entities for: %s' % sanitize_log(entityText))
   rNE = cObject.detect_entities(Text=entityText, LanguageCode=languageCode)
   return rNE
 
 def detectSyntax(cObject, syntaxText, languageCode):
-  logger.info('Detecting Syntax for: %s' % syntaxText)
+  logger.info('Detecting Syntax for: %s' % sanitize_log(syntaxText))
   rDS = cObject.detect_syntax(Text=syntaxText, LanguageCode=languageCode)
   return rDS 
 

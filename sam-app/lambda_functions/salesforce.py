@@ -29,7 +29,7 @@ import boto3
 import datetime
 from botocore.exceptions import ClientError
 from sf_util import get_arg
-from log_util import logger
+from log_util import logger, sanitize_log
 
 class Salesforce:
 
@@ -81,6 +81,12 @@ class Salesforce:
     url = '%s/services/data/%s/search' % (self.host, self.version)
     resp = self.makeRequest(self.request.get, **{"url": url, "params":{'q':query}})
     return resp.json()['searchRecords']
+
+  def describe_sObject(self, sobject):
+    logger.info("Salesforce: DescribeSObject")
+    url = '%s/services/data/%s/sobjects/%s/describe' % (self.host, self.version, sobject)
+    resp = self.makeRequest(self.request.get, **{"url": url, "params": {}})
+    return resp.json()
 
   def isFieldInSObject(self, sobject, field):
     logger.info("Salesforce: DescribeSObject field")
@@ -218,30 +224,30 @@ class Salesforce:
 
 class Request:
   def post(self, url, headers, data=None, params=None, hideData=False):
-    logger.info('POST Requests:\nurl=%s' % url)
+    logger.info('POST Requests: url=%s' % sanitize_log(url))
     if not hideData:
-      logger.info("data=%s\nparams=%s" % (data, params))
+      logger.info("data=%s params=%s" % (sanitize_log(str(data)), sanitize_log(str(params))))
     r = requests.post(url=url, data=json.dumps(data), params=params, headers=headers)
     if not hideData:
-      logger.info("Response: %s" % r.text)
+      logger.info("Response: %s" % sanitize_log(r.text))
     return __check_resp__(r)
 
   def delete(self, url, headers):
-    logger.info("DELETE Requests:\nurl=%s" % url)
+    logger.info("DELETE Requests: url=%s" % sanitize_log(url))
     r = requests.delete(url=url, headers=headers)
-    logger.info("Response: %s" % r.text)
+    logger.info("Response: %s" % sanitize_log(r.text))
     return __check_resp__(r)
 
   def patch(self, url, data, headers):
-    logger.info("PATCH Requests:\nurl=%s\ndata=%s" % (url, data))
+    logger.info("PATCH Requests: url=%s data=%s" % (sanitize_log(url), sanitize_log(str(data))))
     r = requests.patch(url=url, data=json.dumps(data), headers=headers)
-    logger.info("Response: %s" % r.text)
+    logger.info("Response: %s" % sanitize_log(r.text))
     return __check_resp__(r)
 
   def get(self, url, params, headers):
-    logger.info("GET Requests:\nurl=%s\nparams=%s" % (url, params))
+    logger.info("GET Requests: url=%s params=%s" % (sanitize_log(url), sanitize_log(str(params))))
     r = requests.get(url=url, params=params, headers=headers)
-    logger.info("Response: %s" % r.text)
+    logger.info("Response: %s" % sanitize_log(r.text))
     return __check_resp__(r)
 
 def __check_resp__(resp):
