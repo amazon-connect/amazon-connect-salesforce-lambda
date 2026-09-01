@@ -42,6 +42,7 @@ def lambda_handler(event, context):
 
   logger.info("Logging Start sfIntervalAgent")
   logger.info("sfIntervalAgent event: %s" % sanitize_log(json.dumps(event)))
+  global_analytics_enabled = os.environ['GLOBAL_ANALYTICS_ENABLED']
 
   event_record = event['Records'][0]
   bucket = event_record['s3']['bucket']['name']
@@ -63,8 +64,11 @@ def lambda_handler(event, context):
     # Only add the region field if it exists in Salesforce
     if (pnamespace + 'Region__c').lower() in field_mapping:
         session = boto3.session.Session()
-        agent_record[pnamespace + 'Region__c'] = session.region_name
-        ac_record_id = "%s%s" % (ac_record_id, session.region_name)
+        if global_analytics_enabled.lower() == 'true':
+          agent_record[pnamespace + 'Region__c'] = 'global'
+        else:
+          agent_record[pnamespace + 'Region__c'] = session.region_name
+          ac_record_id = "%s%s" % (ac_record_id, session.region_name)
 
     # Filter fields and ensure correct field name casing
     filtered_record = get_filtered_fields(field_mapping, agent_record)

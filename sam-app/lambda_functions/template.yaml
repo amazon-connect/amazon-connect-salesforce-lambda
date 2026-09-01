@@ -147,6 +147,11 @@ Parameters:
     Description: Set to false if importing Contact Lens into Salesforce should not be enabled.
     Type: String
     AllowedPattern: ^([Tt]rue|[Ff]alse)$
+  GlobalAnalyticsEnabled:
+    Default: false
+    Description: Set to true if ACGR is enabled on instance and Global Routing and Analytics are enabled.
+    Type: String
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
   PrivateVpcEnabled:
     Default: false
     Description: Set to true if functions should be deployed to a private VPC, set VpcSecurityGroupList and VpcSubnetList if true
@@ -1041,6 +1046,8 @@ Resources:
                     Ref: SalesforceCredentialsSecretsManagerARN
                 LOGGING_LEVEL:
                     Ref: LambdaLoggingLevel
+                GLOBAL_ANALYTICS_ENABLED:
+                    Ref: GlobalAnalyticsEnabled
 
   sfIntervalQueue:
     Type: AWS::Serverless::Function
@@ -1073,6 +1080,8 @@ Resources:
                     Ref: SalesforceCredentialsSecretsManagerARN
                 LOGGING_LEVEL:
                     Ref: LambdaLoggingLevel
+                GLOBAL_ANALYTICS_ENABLED:
+                    Ref: GlobalAnalyticsEnabled
 
   sfRealTimeQueueMetrics:
     Type: AWS::Serverless::Function
@@ -1111,6 +1120,8 @@ Resources:
             Ref: SalesforceCredentialsSecretsManagerARN
           LOGGING_LEVEL:
             Ref: LambdaLoggingLevel
+          GLOBAL_ANALYTICS_ENABLED:
+            Ref: GlobalAnalyticsEnabled
 
   sfRealTimeQueueMetricsLoopJob:
     Type: AWS::Serverless::Function

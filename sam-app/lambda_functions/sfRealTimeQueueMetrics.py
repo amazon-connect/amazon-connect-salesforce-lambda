@@ -91,6 +91,7 @@ def ac_queue_metrics(queue_id_name_dict,queue_ids, instance_id):
 
         logger.info("Start ac_queue_metrics")
         logger.info(f"Queues : {queue_ids}")
+        global_analytics_enabled = os.environ['GLOBAL_ANALYTICS_ENABLED']
         next_token = 'NoToken'
 
         queuemetics_max_result = os.environ['AMAZON_CONNECT_QUEUEMETRICS_MAX_RESULT']
@@ -208,12 +209,17 @@ def ac_queue_metrics(queue_id_name_dict,queue_ids, instance_id):
 
                         sObjectData = prepare_record(queue_id_name_dict,queue_metics_data_dict)
                         sQueueId = queue_metics_data_dict['queue_id']
-                        # If Region__c exists from Salesforce org, then multi-region is supported. Need to append the region to the Salesforce Queue Id
+                        # If Region__c exists from Salesforce org, then multi-region is supported.
                         if sf.isFieldInSObject(objectnamespace + 'AC_QueueMetrics__c', objectnamespace + 'Region__c'):
                             logger.info("Multi-region enabled")
                             session = boto3.session.Session()
-                            sObjectData[objectnamespace + 'Region__c'] = session.region_name
-                            sQueueId = sQueueId + '-' + session.region_name
+
+                            # If Global Analytics is enabled, use 'Global' as the region and keep single record for each queue.
+                            if global_analytics_enabled.lower() == 'true':
+                                sObjectData[objectnamespace + 'Region__c'] = 'global'
+                            else:
+                                sObjectData[objectnamespace + 'Region__c'] = session.region_name
+                                sQueueId = sQueueId + '-' + session.region_name
 
                         sf.update_by_external(objectnamespace + "AC_QueueMetrics__c", objectnamespace + 'Queue_Id__c', sQueueId, sObjectData)
 
