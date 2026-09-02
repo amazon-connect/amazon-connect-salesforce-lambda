@@ -37,12 +37,22 @@ Parameters:
     Description: Your Salesforce Host. Please make sure the host url starts with "https".
     AllowedPattern: (^$|^https(.*))
     Type: String
+  SalesforceAuthMode:
+    Default: password
+    Description: The OAuth flow used to obtain Salesforce access tokens. "password" uses the username/password grant with SalesforceUsername and the
+      Password/AccessToken values in the credentials secret. "client_credentials" authenticates as the connected app itself and requires the app to have
+      "Enable Client Credentials Flow" checked and an integration ("Run As") user configured in its OAuth policies; SalesforceUsername may be left blank
+      and SalesforceHost must be the org's My Domain URL, since the client credentials flow does not support login.salesforce.com or test.salesforce.com.
+    Type: String
+    AllowedValues:
+      - password
+      - client_credentials
   SalesforceUsername:
     Default: apiuser@<yoursalesforcedomain>.com
     Description: The username of a valid Salesforce API account for your environment. Salesforce usernames are in the form of an email address.
       For example, user@domain.com
     Type: String
-    AllowedPattern: ^.+@.+\..+$
+    AllowedPattern: ^$|^.+@.+\..+$
   SalesforceVersion:
     Default: v42.0
     Description: To find the Salesforce Edition and API Version please visit https://help.salesforce.com/articleView?id=000199268&type=1. The pattern for this field is vXX.X
@@ -167,8 +177,25 @@ Parameters:
     Default: ''
   SalesforceExecuteAWSServiceUser:
     Default: ''
-    Description: This is the name of the IAM User used to call sfExecuteAWSService lambda. 
+    Description: This is the name of the IAM User used to call sfExecuteAWSService lambda.
     Type: String
+  MonitoringDashboardEnabled:
+    Default: true
+    Description: Set to false to skip creating the CloudWatch monitoring dashboard for this stack.
+    Type: String
+    AllowedPattern: ^([Tt]rue|[Ff]alse)$
+
+
+Rules:
+  # SalesforceUsername's AllowedPattern admits an empty string so that
+  # client_credentials deployments can leave it blank. That would also let a
+  # password-grant stack deploy with no username and fail at runtime with an
+  # opaque invalid_grant, so assert it here instead.
+  PasswordModeRequiresUsername:
+    RuleCondition: !Equals [!Ref SalesforceAuthMode, password]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref SalesforceUsername, '']]
+        AssertDescription: SalesforceUsername is required when SalesforceAuthMode is "password".
 
 
 Conditions:
@@ -187,6 +214,7 @@ Conditions:
   CTRKinesisARNHasValue: !Not [!Equals [!Ref CTRKinesisARN, '']]
   AmazonConnectInstanceIdHasValue: !Not [!Equals [!Ref AmazonConnectInstanceId, '']]
   SalesforceExecuteAWSServiceUserHasValue: !Not [!Equals [!Ref SalesforceExecuteAWSServiceUser, '']]
+  MonitoringDashboardEnabledCondition: !Or [!Equals [!Ref MonitoringDashboardEnabled, true], !Equals [!Ref MonitoringDashboardEnabled, 'True']]
 
   CTREventSourceMappingCondition:
     !And
@@ -244,8 +272,51 @@ Globals:
         Timeout: 6
         Runtime: python3.12
         CodeUri: ./sam-app-deployment-artifact.zip
-        
+        Environment:
+          Variables:
+            METRIC_NAMESPACE: AmazonConnectSalesforceLambda
+            STACK_NAME: !Ref AWS::StackName
+
 Resources:
+
+  SalesforceLambdaMonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Condition: MonitoringDashboardEnabledCondition
+    Properties:
+      DashboardName: !Sub "${AWS::StackName}-SalesforceLambda-Monitoring"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text", "x": 0, "y": 0, "width": 24, "height": 2,
+              "properties": {
+                "markdown": "# Amazon Connect Salesforce Lambda — Health\nSecrets Manager version-limit and Salesforce authentication signals for stack **${AWS::StackName}**. These metrics are emitted only when the corresponding error occurs, so **empty graphs (\"No data available\") mean no errors have been recorded — this is the healthy state.** See the installation guide for how to create alarms on these metrics."
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "Secrets Manager LimitExceeded (Sum / 5min)",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "view": "timeSeries",
+                "metrics": [["AmazonConnectSalesforceLambda", "SecretsManagerLimitExceeded", "StackName", "${AWS::StackName}"]]
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "Salesforce Auth Failures (Sum / 5min)",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300,
+                "view": "timeSeries",
+                "metrics": [["AmazonConnectSalesforceLambda", "SalesforceAuthFailure", "StackName", "${AWS::StackName}"]]
+              }
+            }
+          ]
+        }
 
   sfLambdaLayer:
     Type: AWS::Serverless::LayerVersion
@@ -309,6 +380,13 @@ Resources:
           Effect: Allow
           Resource:
           - arn:aws:logs:*:*:*
+        - Action:
+          - cloudwatch:PutMetricData
+          Effect: Allow
+          Resource: '*'
+          Condition:
+            StringEquals:
+              cloudwatch:namespace: AmazonConnectSalesforceLambda
         Version: '2012-10-17'
 
   VpcManagedPolicy:
@@ -931,6 +1009,8 @@ Resources:
           - Ref: sfLambdaLayer
         Environment:
             Variables:
+                SF_AUTH_MODE:
+                    Ref: SalesforceAuthMode
                 SF_HOST:
                     Ref: SalesforceHost
                 SF_PRODUCTION:
@@ -1000,6 +1080,8 @@ Resources:
         Timeout: 30
         Environment:
             Variables:
+                SF_AUTH_MODE:
+                    Ref: SalesforceAuthMode
                 SF_HOST:
                     Ref: SalesforceHost
                 SF_PRODUCTION:
@@ -1032,6 +1114,8 @@ Resources:
         Timeout: 60
         Environment:
             Variables:
+                SF_AUTH_MODE:
+                    Ref: SalesforceAuthMode
                 SF_HOST:
                     Ref: SalesforceHost
                 SF_PRODUCTION:
@@ -1066,6 +1150,8 @@ Resources:
         Timeout: 60
         Environment:
             Variables:
+                SF_AUTH_MODE:
+                    Ref: SalesforceAuthMode
                 SF_HOST:
                     Ref: SalesforceHost
                 SF_PRODUCTION:
@@ -1100,6 +1186,8 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
+          SF_AUTH_MODE:
+            Ref: SalesforceAuthMode
           SF_HOST:
             Ref: SalesforceHost
           SF_PRODUCTION:
