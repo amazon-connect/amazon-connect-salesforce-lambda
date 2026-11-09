@@ -1,0 +1,30 @@
+# Build inputs for lambda_layers.zip (AWS Lambda layer, python3.12).
+#
+# Every dependency here is a pure-Python wheel (py3-none-any); the layer
+# contains no compiled extensions, so the build is platform independent.
+#
+# Rebuild with:
+#   pip install -r requirements.txt \
+#       --target python/lib/python3.12/site-packages \
+#       --python-version 3.12 --only-binary :all:
+#   zip -r lambda_layers.zip python
+#
+# Versions match the previously committed lambda_layers.zip, except:
+#   certifi  2024.7.4 -> 2026.10.19  (GHSA-6q48-6c7w-9gw2, critical)
+#   idna     3.10     -> 3.18        (GHSA-65pc-fj4g-8rjx; already in SAR 5.28.2+)
+#   urllib3  2.7.0    -> 2.8.0       (3 advisories; already in SAR 5.28.2+)
+
+boto3==1.43.47
+botocore==1.43.47
+certifi==2026.10.19
+chardet==4.0.0
+charset-normalizer==3.4.1
+docutils==0.18.1
+idna==3.18
+jmespath==1.0.1
+phonenumbers==8.13.48
+python-dateutil==2.9.0
+requests==2.33.0
+s3transfer==0.19.1
+six==1.16.0
+urllib3==2.8.0
